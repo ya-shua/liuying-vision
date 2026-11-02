@@ -225,6 +225,10 @@
       <button class="b-btn" id="goto-settings">去设置接入</button>
     </div>
 
+    <div class="banner" id="config-banner" style="display:none">
+      <span class="b-text"></span>
+    </div>
+
     <div class="metrics" id="metrics"></div>
 
     <div class="card">
@@ -470,6 +474,20 @@ async function loadStatus() {
   const bText = banner.querySelector('.b-text');
   if (!outs.length) { banner.style.display = 'flex'; bText.textContent = '还没选「输出去向」—— 描述没有地方可去，去设置里勾一个。'; }
   else banner.style.display = 'none';
+
+  // 配置坏了必须说出来，不能让人以为"我的设置凭空消失了"
+  const cb = $('config-banner');
+  if (cb) {
+    const ci = r.configIssue;
+    if (ci) {
+      cb.style.display = 'flex';
+      cb.querySelector('.b-text').innerHTML = '⚠ 配置文件读不出来（' + esc(ci.error) + '）' +
+        (ci.backup ? '，原文件已备份到 ' + esc(ci.backup) : '') +
+        ' —— 下面显示的是默认值，重新保存一次就会覆盖回去。';
+    } else {
+      cb.style.display = 'none';
+    }
+  }
 
   const cap = Math.max(1, Number(cfg.dailyCap) || 40);
   const used = Number(r.usage.seenToday) || 0;

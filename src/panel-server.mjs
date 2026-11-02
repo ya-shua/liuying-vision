@@ -43,7 +43,10 @@ function readBody(req) {
   });
 }
 
-/** 读配置文件（key 打码交给调用方；文件坏了按默认） */
+/** 上一次读配置遇到的问题（坏 JSON / 编码），/api/status 会带出去 */
+let configIssue = null;
+
+/** 读配置文件（key 打码交给调用方；文件坏了会备份并记下原因，不静默吞掉） */
 function readConfigFile(configPath) {
   const cfg = {
     enabled: false,
@@ -65,13 +68,22 @@ function readConfigFile(configPath) {
       ffmpegPath: 'ffmpeg',
     },
   };
+  configIssue = null;
   try {
     if (existsSync(configPath)) {
-      const parsed = JSON.parse(readFileSync(configPath, 'utf8'));
+      let raw = readFileSync(configPath, 'utf8');
+      if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1); // 记事本/PowerShell 可能写进 BOM，直接吃掉
+      const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) Object.assign(cfg, parsed);
     }
-  } catch {
-    // 配置坏了按默认展示，保存时会覆盖回来
+  } catch (e) {
+    // 不能静默变默认 —— 备份坏文件、把原因带回面板，否则用户只会看到"配置全没了"
+    let backup = null;
+    try {
+      backup = configPath + '.bad-' + Date.now();
+      writeFileSync(backup, readFileSync(configPath));
+    } catch {}
+    configIssue = { error: e.message, backup };
   }
   return cfg;
 }
@@ -170,6 +182,7 @@ export async function createPanelServer({
           },
           outputs: (cfg.outputs ?? []).map((o) => ({ type: o.type, enabled: o.enabled !== false })),
           ffmpeg: await ffmpegAvailable(cfg.video?.ffmpegPath || 'ffmpeg'),
+          configIssue,
           config: masked(cfg),
         });
       }
