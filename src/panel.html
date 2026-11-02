@@ -213,7 +213,8 @@
   <div class="tabs">
     <div class="tab on" data-view="func">功能</div>
     <div class="tab" data-view="access">模型接入</div>
-    <div class="tab" data-view="tune">调节</div>
+    <div class="tab" data-view="photo">照片</div>
+    <div class="tab" data-view="video">视频</div>
     <div class="tab" data-view="outputs">输出去向</div>
   </div>
 
@@ -282,7 +283,7 @@
     </div>
 
     </div>
-    <div class="view" id="view-tune">
+    <div class="view" id="view-photo">
     <div class="card">
       <div class="card-title">节奏与开关</div>
       <div class="card-desc">整体看多少、多快。上限都按「媒体」数 —— 一张图和一段视频都算一个。</div>
@@ -294,11 +295,6 @@
       </div>
     </div>
 
-    <div class="subtabs">
-      <div class="subtab on" data-sub="photo">照片调节</div>
-      <div class="subtab" data-sub="video">视频调节</div>
-    </div>
-    <div class="subview on" id="sub-photo">
     <div class="card">
       <div class="card-title">照片 · 大小与读取</div>
       <div class="card-desc">图片的读取限制。试看入口在「功能」页。</div>
@@ -307,7 +303,8 @@
       </div>
     </div>
     </div>
-    <div class="subview" id="sub-video">
+    <div class="view" id="view-video">
+    <div class="hint" style="margin:0 0 14px">总开关和日限在「照片」页；下面是视频自己的参数。</div>
     <div class="card">
       <div class="card-title">视频 · 抽帧（画面）</div>
       <div class="card-desc">视频来了先抽帧、逐帧看，描述合并成一条记忆。需要本机有 ffmpeg —— <span id="v-ffmpeg-state" class="hint">探测中…</span></div>
@@ -449,18 +446,8 @@ window.addEventListener('hashchange', () => {
   const v = location.hash.slice(1);
   if (v) showTab(v);
 });
-document.querySelectorAll('.subtab').forEach((t) => {
-  t.addEventListener('click', () => {
-    document.querySelectorAll('.subtab').forEach((x) => x.classList.remove('on'));
-    document.querySelectorAll('.subview').forEach((x) => x.classList.remove('on'));
-    t.classList.add('on');
-    $('sub-' + t.dataset.sub).classList.add('on');
-  });
-});
-function gotoSub(name) { document.querySelector('.subtab[data-sub="' + name + '"]').click(); }
-function gotoTab(view, sub) {
-  document.querySelector('.tab[data-view="' + view + '"]').click();
-  if (sub) gotoSub(sub);
+function gotoTab(view) {
+  showTab(view);
 }
 $('goto-settings').addEventListener('click', () => gotoTab('outputs'));
 
@@ -651,9 +638,44 @@ async function loadSeen() {
     };
     pick.addEventListener('change', sync);
     sync();
-    const del = row.querySelector('.ch-del');
-    if (del) del.addEventListener('click', () => { row.remove(); });
   }
+
+  /** 重排通道：编号、"删掉"按钮有无、到 4 条就把添加按钮禁用 */
+  function refreshChRows() {
+    const rows = [...document.querySelectorAll('#ch-list .ch-row')];
+    rows.forEach((row, i) => {
+      const b = row.querySelector('.out-head b');
+      if (b) b.textContent = '通道 ' + (i + 1);
+      let del = row.querySelector('.ch-del');
+      if (rows.length > 1 && !del) {
+        del = document.createElement('button');
+        del.className = 'btn ch-del';
+        del.type = 'button';
+        del.textContent = '删掉';
+        row.querySelector('.out-head').appendChild(del);
+      } else if (rows.length <= 1 && del) {
+        del.remove();
+        del = null;
+      }
+      if (del) del.onclick = () => { row.remove(); refreshChRows(); };
+    });
+    const addBtn = $('ch-add');
+    if (addBtn) addBtn.disabled = rows.length >= 4;
+  }
+
+  /* 添加通道：之前这个按钮根本没绑事件，点了没反应 */
+  $('ch-add').addEventListener('click', () => {
+    const listEl = $('ch-list');
+    const n = listEl.querySelectorAll('.ch-row').length;
+    if (n >= 4) { toast('最多 4 条通道', 'bad'); return; }
+    const wrap = document.createElement('div');
+    wrap.innerHTML = chRowHtml(n, {}, 2); // total=2：新行一定带"删掉"
+    const row = wrap.firstElementChild;
+    listEl.appendChild(row);
+    bindChRow(row);
+    refreshChRows();
+    toast('已添加通道 ' + (n + 1), 'ok');
+  });
 
   function renderChannels(cfg) {
     if (!MODELS_CACHE.length) { ensureCatalog().then(() => renderChannels(cfg)); return; }
@@ -663,6 +685,7 @@ async function loadSeen() {
     const listEl = $('ch-list');
     listEl.innerHTML = list.slice(0, 4).map((ch, i) => chRowHtml(i, ch, Math.max(1, Math.min(4, list.length)))).join('');
     listEl.querySelectorAll('.ch-row').forEach(bindChRow);
+    refreshChRows();
   }
 
   function collectChannels() {
