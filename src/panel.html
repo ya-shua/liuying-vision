@@ -73,8 +73,7 @@
   .subview { display: none; }
   .subview.on { display: block; }
 
-  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 16px; }
-  @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .stat {
     padding: 16px 18px 14px; border-radius: 14px;
     background: linear-gradient(168deg, rgba(10,14,22,.92), rgba(6,9,15,.96));
@@ -84,6 +83,9 @@
   .stat-main { font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
   .stat-sub { margin-top: 4px; font-size: 11.5px; color: var(--faint); }
   .stat:first-child .stat-main { color: var(--eye); }
+  .stat .bar { margin-top: 9px; height: 3px; border-radius: 99px; background: rgba(255,255,255,.09); overflow: hidden; }
+  .stat .bar > i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--eye), #ffb74d); transition: width .35s; }
+  .stat .bar.hot > i { background: linear-gradient(90deg, #ffb74d, var(--bad)); }
 
   .banner {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -147,6 +149,30 @@
   .hint { font-size: 11px; color: var(--faint); }
   .save-row { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; margin-top: 4px; }
   .err { color: var(--bad); font-size: 12px; }
+
+  /* 结果头部：耗时 + 复制 */
+  .result .head { display: flex; align-items: center; gap: 10px; margin-top: 9px; flex-wrap: wrap; }
+  .result .head .sp { flex: 1; }
+
+  /* 自检清单 */
+  .check-list { display: grid; gap: 9px; }
+  .check-item { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+  .check-item .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .check-item .dot.ok   { background: var(--ok);   box-shadow: 0 0 8px rgba(110,231,160,.55); }
+  .check-item .dot.warn { background: var(--warn); box-shadow: 0 0 8px rgba(255,192,107,.55); }
+  .check-item .dot.bad  { background: var(--bad);  box-shadow: 0 0 8px rgba(255,125,125,.55); }
+  .check-item .k { color: var(--dim); min-width: 78px; }
+  .check-item .v.bad { color: var(--bad); }
+  .check-item .v.warn { color: var(--warn); }
+
+  /* 保存提示 */
+  .toast { position: fixed; right: 22px; bottom: 22px; z-index: 50; padding: 10px 16px; border-radius: 10px;
+    background: rgba(16,22,32,.97); border: 1px solid var(--border); font-size: 12.5px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; transform: translateY(8px);
+    transition: opacity .2s, transform .2s; pointer-events: none; }
+  .toast.on { opacity: 1; transform: none; }
+  .toast.ok { border-color: rgba(110,231,160,.45); color: var(--ok); }
+  .toast.bad { border-color: rgba(255,125,125,.45); color: var(--bad); }
   .ok-text { color: var(--ok); font-size: 12px; }
 
   .savebar {
@@ -201,6 +227,12 @@
     <div class="metrics" id="metrics"></div>
 
     <div class="card">
+      <div class="card-title">自检</div>
+      <div class="card-desc">一眼看出哪条链路是通的 —— 不用等真的出错才发现。</div>
+      <div class="check-list" id="check-list"></div>
+    </div>
+
+    <div class="card">
       <div class="card-title">试看一张图</div>
       <div class="card-desc">粘一个图链，当场让眼睛看一眼。只描述，不进任何输出、不占日限 —— 用来试 key 通不通。</div>
       <div class="row">
@@ -210,6 +242,11 @@
       <div class="result" id="test-result">
         <div class="desc" id="test-desc"></div>
         <div class="pts" id="test-pts"></div>
+        <div class="head">
+          <span class="hint" id="test-ms"></span>
+          <span class="sp"></span>
+          <button class="btn" id="test-copy" style="display:none">复制描述</button>
+        </div>
       </div>
     </div>
 
@@ -374,6 +411,8 @@
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -382,18 +421,34 @@ const clock = (ts) => ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false 
 const OUT_TYPES = { ringmind: '环形的心', sqlite: 'SQLite', jsonl: 'JSONL', markdown: 'Markdown', webhook: 'Webhook', custom: '自定义' };
 let currentCfg = { outputs: [] };
 
-/* 页签切换 */
-document.querySelectorAll('.tab').forEach((t) => {
-  t.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('on'));
-    document.querySelectorAll('.view').forEach((x) => x.classList.remove('on'));
-    t.classList.add('on');
-    $('view-' + t.dataset.view).classList.add('on');
-  });
-});
-function gotoSettings() {
-  document.querySelector('.tab[data-view="settings"]').click();
+/* 轻提示 */
+let toastTimer = null;
+function toast(msg, kind = '') {
+  const el = $('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'toast on ' + kind;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast ' + kind; }, 2200);
 }
+
+/* 页签切换（带 #hash，刷新不丢当前页） */
+function showTab(view) {
+  const t = document.querySelector('.tab[data-view="' + view + '"]');
+  if (!t) return;
+  document.querySelectorAll('.tab').forEach((x) => x.classList.remove('on'));
+  document.querySelectorAll('.view').forEach((x) => x.classList.remove('on'));
+  t.classList.add('on');
+  $('view-' + view).classList.add('on');
+  if (location.hash.slice(1) !== view) history.replaceState(null, '', '#' + view);
+}
+document.querySelectorAll('.tab').forEach((t) => {
+  t.addEventListener('click', () => showTab(t.dataset.view));
+});
+window.addEventListener('hashchange', () => {
+  const v = location.hash.slice(1);
+  if (v) showTab(v);
+});
 document.querySelectorAll('.subtab').forEach((t) => {
   t.addEventListener('click', () => {
     document.querySelectorAll('.subtab').forEach((x) => x.classList.remove('on'));
@@ -429,18 +484,95 @@ async function loadStatus() {
   if (!outs.length) { banner.style.display = 'flex'; bText.textContent = '还没选「输出去向」—— 描述没有地方可去，去设置里勾一个。'; }
   else banner.style.display = 'none';
 
+  const cap = Math.max(1, Number(cfg.dailyCap) || 40);
+  const used = Number(r.usage.seenToday) || 0;
+  const pct = Math.min(100, Math.round((used / cap) * 100));
+  const hot = pct >= 90;
+
   $('metrics').innerHTML = [
-    ['今天已看', r.usage.seenToday + ' 张', '日限 ' + cfg.dailyCap + ' 张'],
-    ['累计看过', r.usage.totalSeen + ' 张', r.usage.lastSeenAt ? '最近 ' + clock(r.usage.lastSeenAt) : '还没开张'],
-    ['模型', esc(cfg.model), (cfg.channels?.length > 1 ? cfg.channels.length + ' 通道并发 · ' : '') + (cfg.apiKeySet ? 'key …' + esc(cfg.apiKeyTail) : '免密')],
-    ['输出去向', outs.length ? outs.map((o) => OUT_TYPES[o.type] || o.type).join(' / ') : '（没选）', '可叠加，互不拖累'],
-    ['视频', (cfg.video?.enabled !== false ? '开 · ' + (cfg.video?.frames ?? 3) + '帧' : '关'), r.ffmpeg ? 'ffmpeg ✓' : '未装 ffmpeg — 视频跳过'],
-  ].map(([l, m, s]) =>
-    `<div class="stat"><div class="stat-label">${l}</div><div class="stat-main">${m}</div><div class="stat-sub">${s}</div></div>`
+    { l: '今天已看', m: used + ' 张', s: '日限 ' + cap + ' 张 · 还剩 ' + Math.max(0, cap - used), bar: pct },
+    { l: '累计看过', m: r.usage.totalSeen + ' 张', s: r.usage.lastSeenAt ? '最近 ' + clock(r.usage.lastSeenAt) : '还没开张' },
+    { l: '模型', m: esc(cfg.model || '未选'), s: (cfg.channels?.length > 1 ? cfg.channels.length + ' 通道并发 · ' : '') + (cfg.apiKeySet ? 'key …' + esc(cfg.apiKeyTail) : '免密') },
+    { l: '输出去向', m: outs.length ? outs.map((o) => OUT_TYPES[o.type] || o.type).join(' / ') : '（没选）', s: '可叠加，互不拖累' },
+    { l: '视频', m: (cfg.video?.enabled !== false ? '开 · ' + (cfg.video?.frames ?? 3) + '帧' : '关'), s: r.ffmpeg ? 'ffmpeg ✓' : '未装 ffmpeg — 视频跳过' },
+  ].map(({ l, m, s, bar }) =>
+    `<div class="stat"><div class="stat-label">${l}</div><div class="stat-main">${m}</div><div class="stat-sub">${s}</div>` +
+    (bar != null ? `<div class="bar${hot ? ' hot' : ''}"><i style="width:${bar}%"></i></div>` : '') +
+    `</div>`
   ).join('');
   const vs = $('v-ffmpeg-state');
   if (vs) vs.textContent = r.ffmpeg ? '已检测到 ffmpeg ✓' : '未检测到 ffmpeg —— 视频会自动跳过（ffmpeg.org 下载，或在下面填完整路径）';
   fillConfig(cfg);
+  renderCheck(cfg, r, outs);
+}
+
+/* 自检：把「通不通」摆出来，不用等真出错 */
+function renderCheck(cfg, r, outs) {
+  const box = $('check-list');
+  if (!box) return;
+  const items = [];
+
+  // 1. 视觉模型通道
+  const chs = (cfg.channels?.length ? cfg.channels : (cfg.baseUrl ? [cfg] : []));
+  const hasKey = !!cfg.apiKeySet || chs.some((c) => c.apiKeySet);
+  items.push(chs.length
+    ? { s: 'ok', k: '视觉模型', v: chs.length + ' 条通道 · ' + esc(chs.map((c) => c.model || '?').join(' / ')) + (hasKey ? ' · 已配 key' : ' · 免密') }
+    : { s: 'bad', k: '视觉模型', v: '还没有可用通道 —— 去「模型接入」填接口地址和模型' });
+
+  // 2. 总开关
+  items.push(cfg.enabled
+    ? { s: 'ok', k: '总开关', v: '开着' }
+    : { s: 'warn', k: '总开关', v: '关着 —— 消息来了不会看' });
+
+  // 3. 输出去向 + 必填项
+  const NEED = { ringmind: 'dbPath', sqlite: 'dbPath', jsonl: 'file', markdown: 'file', webhook: 'url', custom: 'file' };
+  if (!outs.length) {
+    items.push({ s: 'bad', k: '输出去向', v: '一个都没选 —— 描述没有地方可去' });
+  } else {
+    const missing = outs.filter((o) => NEED[o.type] && !o[NEED[o.type]]);
+    items.push({
+      s: missing.length ? 'warn' : 'ok',
+      k: '输出去向',
+      v: outs.length + ' 个：' + outs.map((o) => OUT_TYPES[o.type] || o.type).join(' / ') +
+        (missing.length ? '（' + missing.map((o) => OUT_TYPES[o.type] || o.type).join('/') + ' 缺必填项）' : ''),
+    });
+  }
+
+  // 4. ffmpeg
+  items.push({
+    s: r.ffmpeg ? 'ok' : (cfg.video?.enabled !== false ? 'warn' : 'ok'),
+    k: 'ffmpeg',
+    v: r.ffmpeg ? '已检测到，视频可抽帧' : (cfg.video?.enabled !== false ? '没装 —— 视频会被跳过' : '没装，但视频开关是关的'),
+  });
+
+  // 5. 记忆库（异步补）
+  const usesRing = outs.some((o) => o.type === 'ringmind');
+  items.push({ s: 'warn', k: '记忆库', v: '检测中…' });
+
+  box.innerHTML = items.map((i) =>
+    `<div class="check-item"><span class="dot ${i.s}"></span><span class="k">${i.k}</span>` +
+    `<span class="v ${i.s === 'ok' ? '' : i.s}">${i.v}</span></div>`
+  ).join('');
+
+  const last = box.querySelector('.check-item:last-child');
+  if (!last) return;
+  fetch('/api/discover-ring').then((x) => x.json()).then((d) => {
+    const dot = last.querySelector('.dot');
+    const v = last.querySelector('.v');
+    if (d?.ok && d.dbPath) {
+      dot.className = 'dot ok';
+      v.className = 'v';
+      v.textContent = '已连上 · ' + (d.name ? d.name + ' · ' : '') + d.dbPath;
+    } else if (usesRing) {
+      dot.className = 'dot warn';
+      v.className = 'v warn';
+      v.textContent = '勾了记忆库但没找到库位置 —— 去「输出去向」点「自动连接」';
+    } else {
+      dot.className = 'dot warn';
+      v.className = 'v warn';
+      v.textContent = '没用记忆库输出（不影响使用）';
+    }
+  }).catch(() => {});
 }
 
 function ringName(r) {
@@ -575,6 +707,16 @@ function fillConfig(cfg) {
   const wh = find('webhook');
   $('o-webhook-on').checked = !!(wh && wh.enabled !== false);
   $('o-webhook-url').value = wh?.url ?? '';
+  const sq = find('sqlite');
+  $('o-sqlite-on').checked = !!(sq && sq.enabled !== false);
+  $('o-sqlite-db').value = sq?.dbPath ?? '';
+  $('o-sqlite-table').value = sq?.table ?? '';
+  const md = find('markdown');
+  $('o-md-on').checked = !!(md && md.enabled !== false);
+  $('o-md-file').value = md?.file ?? '';
+  const cu = find('custom');
+  $('o-custom-on').checked = !!(cu && cu.enabled !== false);
+  $('o-custom-file').value = cu?.file ?? '';
   $('v-enabled').value = (cfg.video?.enabled !== false) ? 'true' : 'false';
   $('v-frames').value = cfg.video?.frames ?? 3;
   $('v-mode').value = cfg.video?.mode ?? 'interval';
@@ -590,27 +732,29 @@ function fillConfig(cfg) {
   $('a-maxsec').value = cfg.asr?.maxSeconds ?? 120;
 }
 
+const KNOWN_OUT = ['ringmind', 'sqlite', 'jsonl', 'markdown', 'webhook', 'custom'];
 function collectOutputs() {
-  const keep = (currentCfg.outputs ?? []).filter((o) => !['ringmind', 'jsonl', 'webhook'].includes(o.type));
-  const out = [...keep];
+  // 只保留面板不认识的输出类型（用户可能在 vision.json 里手写过别的）
+  const out = (currentCfg.outputs ?? []).filter((o) => !KNOWN_OUT.includes(o.type));
+
   if ($('o-ringmind-on').checked) {
     const ring = $('o-ringmind-ring').value;
     out.push({ type: 'ringmind', enabled: true, dbPath: $('o-ringmind-db').value.trim(), name: $('o-ringmind-name').value.trim(), ...(ring ? { ring } : {}), skipVault: true });
   }
-  if ($('o-jsonl-on').checked && $('o-jsonl-file').value.trim()) {
-    out.push({ type: 'jsonl', enabled: true, file: $('o-jsonl-file').value.trim() });
-  }
-  if ($('o-webhook-on').checked && $('o-webhook-url').value.trim()) {
   if ($('o-sqlite-on').checked && $('o-sqlite-db').value.trim()) {
     out.push({ type: 'sqlite', enabled: true, dbPath: $('o-sqlite-db').value.trim(), table: $('o-sqlite-table').value.trim() || 'vision_log' });
+  }
+  if ($('o-jsonl-on').checked && $('o-jsonl-file').value.trim()) {
+    out.push({ type: 'jsonl', enabled: true, file: $('o-jsonl-file').value.trim() });
   }
   if ($('o-md-on').checked && $('o-md-file').value.trim()) {
     out.push({ type: 'markdown', enabled: true, file: $('o-md-file').value.trim() });
   }
+  if ($('o-webhook-on').checked && $('o-webhook-url').value.trim()) {
+    out.push({ type: 'webhook', enabled: true, url: $('o-webhook-url').value.trim() });
+  }
   if ($('o-custom-on').checked && $('o-custom-file').value.trim()) {
     out.push({ type: 'custom', enabled: true, file: $('o-custom-file').value.trim() });
-  }
-    out.push({ type: 'webhook', enabled: true, url: $('o-webhook-url').value.trim() });
   }
   return out;
 }
@@ -647,33 +791,62 @@ $('access-save').addEventListener('click', async () => {
   if (r.ok) {
     el.textContent = '✓ 已接入 ' + channels.length + ' 条通道' + (channels.length > 1 ? '（并发加速）' : '');
     el.className = 'key-state ok-text';
+    toast('已接入 ' + channels.length + ' 条通道', 'ok');
     loadStatus();
   } else {
     el.textContent = '没存成：' + (r.error || '?');
     el.className = 'key-state err';
+    toast('没存成：' + (r.error || '?'), 'bad');
   }
 });
 
 /* 试看 */
+let lastTestDesc = '';
 $('test-go').addEventListener('click', async () => {
   const box = $('test-result');
+  const btn = $('test-go');
+  const url = $('test-url').value.trim();
   box.classList.add('on');
-  $('test-desc').textContent = '看着…';
+  $('test-desc').textContent = url ? '看着…' : '先粘一个图链';
   $('test-pts').textContent = '';
   $('test-pts').className = 'pts';
+  $('test-ms').textContent = '';
+  $('test-copy').style.display = 'none';
+  if (!url) return;
+
+  btn.disabled = true;
+  btn.textContent = '看着…';
+  const t0 = performance.now();
   try {
     const r = await fetch('/api/test', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url: $('test-url').value.trim() }),
+      body: JSON.stringify({ url }),
     }).then((x) => x.json());
     if (!r.ok) throw new Error(r.error || '没看成');
+    const ms = r.ms != null ? r.ms : Math.round(performance.now() - t0);
+    const pts = Array.isArray(r.points) ? r.points : [];
+    lastTestDesc = r.desc || '';
     $('test-desc').textContent = r.desc;
-    $('test-pts').innerHTML = r.points.length ? '要点：<b>' + r.points.map(esc).join('</b> · <b>') + '</b>' : '（模型没给要点）';
-    $('test-ms').textContent = (r.ms != null ? '识别耗时 ' + fmtMs(r.ms) : '') + (r.frames ? ' · ' + r.frames + ' 帧' : '');
+    $('test-pts').innerHTML = pts.length ? '要点：<b>' + pts.map(esc).join('</b> · <b>') + '</b>' : '（模型没给要点）';
+    $('test-ms').textContent = '耗时 ' + fmtMs(ms) + (r.frames ? ' · ' + r.frames + ' 帧' : '') + (r.model ? ' · ' + r.model : '');
+    $('test-copy').style.display = '';
   } catch (e) {
     $('test-desc').textContent = '没看成';
     $('test-pts').textContent = e.message;
     $('test-pts').className = 'pts err';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '看一眼';
+  }
+});
+
+$('test-copy').addEventListener('click', async () => {
+  if (!lastTestDesc) return;
+  try {
+    await navigator.clipboard.writeText(lastTestDesc);
+    toast('已复制描述', 'ok');
+  } catch {
+    toast('复制失败（浏览器不给剪贴板权限）', 'bad');
   }
 });
 
@@ -691,6 +864,7 @@ $('c-save').addEventListener('click', async () => {
     }),
   }).then((x) => x.json());
   $('c-hint').textContent = r.ok ? '已保存 ' + r.configPath : ('没存成：' + (r.error || '?'));
+  toast(r.ok ? '设置已保存' : ('没存成：' + (r.error || '?')), r.ok ? 'ok' : 'bad');
   loadStatus();
 });
 
@@ -701,6 +875,8 @@ $('rm-discover').addEventListener('click', async () => {
   setTimeout(() => (b.textContent = '自动连接'), 2500);
 });
 $('seen-refresh').addEventListener('click', loadSeen);
+const initView = location.hash.slice(1);
+if (initView) showTab(initView);
 loadStatus();
 loadSeen();
 </script>
