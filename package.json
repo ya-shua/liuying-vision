@@ -1,0 +1,15 @@
+{
+  "name": "liuying",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "留影 —— 环形的心（记忆库）的视觉接入插件：QQ 图片 → 视觉模型看一眼 → 描述进记忆圈",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "panel": "node src/panel.mjs"
+  }
+}

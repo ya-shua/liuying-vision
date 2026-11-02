@@ -1,0 +1,304 @@
+/**
+ * 留影 · 面板服务（被 src/panel.mjs 启动，测试直接 import 这里）
+ *
+ * 只监听本机的小服务：
+ *   GET  /            面板页
+ *   GET  /api/status  状态 + 用量（打码 key）
+ *   GET  /api/seen    最近看过的图（eye.db）
+ *   POST /api/test    试看一张图（只描述，不进任何输出、不占日限）
+ *   GET/POST /api/config  读/存 vision.json（key 打码；留空 = 不改）
+ */
+
+import http from 'node:http';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { openEyeStore } from './store.mjs';
+import { fetchImage, describeVideo, isVideoUrl } from './ring-vision.mjs';
+import { describeImage } from './describe.mjs';
+import { ffmpegAvailable } from './video.mjs';
+import { MODELS } from './models.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = dirname(HERE);
+const PANEL_HTML = join(HERE, 'panel.html');
+
+const json = (res, code, obj) => {
+  res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(obj));
+};
+
+function readBody(req) {
+  return new Promise((resolve) => {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(raw || '{}'));
+      } catch {
+        resolve({});
+      }
+    });
+  });
+}
+
+/** 读配置文件（key 打码交给调用方；文件坏了按默认） */
+function readConfigFile(configPath) {
+  const cfg = {
+    enabled: false,
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    model: 'glm-4v-flash',
+    apiKey: '',
+    dailyCap: 40,
+    perMessage: 2,
+    maxBytes: 8 * 1024 * 1024,
+    timeoutMs: 45000,
+    outputs: [],
+    channels: [],
+    video: {
+      enabled: true,
+      frames: 3,
+      mode: 'interval',
+      intervalSec: 5,
+      maxBytes: 64 * 1024 * 1024,
+      ffmpegPath: 'ffmpeg',
+    },
+  };
+  try {
+    if (existsSync(configPath)) {
+      const parsed = JSON.parse(readFileSync(configPath, 'utf8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) Object.assign(cfg, parsed);
+    }
+  } catch {
+    // 配置坏了按默认展示，保存时会覆盖回来
+  }
+  return cfg;
+}
+
+export function saveConfigFile(configPath, cfg) {
+  writeFileSync(configPath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
+}
+
+/** 从环形的心自己的记录里找当前库（data-location.json 是它的「库在哪」的唯一事实源） */
+function discoverRingLibrary() {
+  const candidates = [
+    process.env.RING_ROOT,
+    join(ROOT, '..', '环形的心'), // 常见装法：桌面/插件/{留影,环形的心} 并排
+    process.env.USERPROFILE && join(process.env.USERPROFILE, '环形的心'),
+  ].filter(Boolean).map((x) => String(x).replace(/\\/g, '/').replace(/\/+$/, ''));
+  const root = candidates.find((x) => existsSync(x + '/src/index.js'));
+  if (!root) return { ok: false, error: '找不到环形的心项目（设 RING_ROOT 指过去）' };
+  let dbPath = null;
+  let name = null;
+  try {
+    const loc = JSON.parse(readFileSync(join(root, 'data-location.json'), 'utf8'));
+    dbPath = loc.dbPath || null;
+    const libsFile = join(root, 'libraries.json');
+    if (dbPath && existsSync(libsFile)) {
+      const libs = JSON.parse(readFileSync(libsFile, 'utf8'));
+      const hit = (libs.libs ?? []).find((l) => l.db === dbPath || l.dir === loc.dataDir);
+      if (hit?.name) name = hit.name;
+    }
+  } catch (e) {
+    return { ok: false, error: '读环形的心记录失败：' + String(e?.message ?? e) };
+  }
+  if (!dbPath) return { ok: false, error: '环形的心记录里没有 dbPath' };
+  if (!name) name = String(dbPath).split('/').pop().replace(/\.db$/i, '');
+  return { ok: true, dbPath, name };
+}
+
+function masked(cfg) {
+  const out = {
+    ...cfg,
+    apiKey: undefined,
+    apiKeySet: !!cfg.apiKey,
+    apiKeyTail: cfg.apiKey ? cfg.apiKey.slice(-4) : '',
+  };
+  if (Array.isArray(out.channels)) {
+    out.channels = out.channels.map((c) => ({
+      ...c,
+      apiKey: undefined,
+      apiKeySet: !!c.apiKey,
+      apiKeyTail: c.apiKey ? c.apiKey.slice(-4) : '',
+    }));
+  }
+  if (out.asr) {
+    // 嵌套的语音 key 同样打码 —— 完整 key 绝不能回传浏览器
+    out.asr = {
+      ...out.asr,
+      apiKey: undefined,
+      apiKeySet: !!out.asr.apiKey,
+      apiKeyTail: out.asr.apiKey ? out.asr.apiKey.slice(-4) : '',
+    };
+  }
+  return out;
+}
+
+/**
+ * 起面板服务。dataDir 是 vision.json + eye.db 的家；目录不存在会自动建。
+ */
+export async function createPanelServer({
+  dataDir = process.env.RING_VISION_DATA || join(ROOT, 'data'),
+  port = 5188,
+  host = '127.0.0.1',
+  visionFetchImpl, // 测试注入：给「试看」用的假 fetch
+} = {}) {
+  const configPath = join(dataDir, 'vision.json');
+  const store = openEyeStore(dataDir);
+
+  const server = http.createServer(async (req, res) => {
+    const u = new URL(req.url, 'http://x');
+    const p = u.pathname;
+
+    try {
+      if (req.method === 'GET' && p === '/') {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        return res.end(readFileSync(PANEL_HTML));
+      }
+
+      if (p === '/api/status' && req.method === 'GET') {
+        const cfg = readConfigFile(configPath);
+        return json(res, 200, {
+          ok: true,
+          dataDir,
+          configPath,
+          usage: {
+            seenToday: store.seenToday(new Date().setHours(0, 0, 0, 0)),
+            totalSeen: store.total(),
+            lastSeenAt: store.lastSeenAt(),
+          },
+          outputs: (cfg.outputs ?? []).map((o) => ({ type: o.type, enabled: o.enabled !== false })),
+          ffmpeg: await ffmpegAvailable(cfg.video?.ffmpegPath || 'ffmpeg'),
+          config: masked(cfg),
+        });
+      }
+
+      if (p === '/api/discover-ring' && req.method === 'GET') {
+        return json(res, 200, discoverRingLibrary());
+      }
+
+      if (p === '/api/models' && req.method === 'GET') {
+        return json(res, 200, { ok: true, models: MODELS });
+      }
+
+      if (p === '/api/seen' && req.method === 'GET') {
+        const limit = Math.min(200, Number(u.searchParams.get('limit')) || 50);
+        return json(res, 200, { ok: true, rows: store.recent(limit) });
+      }
+
+      if (p === '/api/test' && req.method === 'POST') {
+        const body = await readBody(req);
+        const url = String(body.url ?? '').trim();
+        if (!/^https?:\/\//i.test(url)) return json(res, 400, { ok: false, error: '要一个 http(s) 图链' });
+        const cfg = readConfigFile(configPath);
+        // 视频试看：抽帧 → 逐帧描述 → 合并（同样只描述，不落任何输出）
+        if (isVideoUrl(url)) {
+          if (!(await ffmpegAvailable(cfg.video?.ffmpegPath || 'ffmpeg'))) {
+            return json(res, 400, { ok: false, error: '未检测到 ffmpeg —— 视频试看需要它（ffmpeg.org 下载，或在视频设置里填完整路径）' });
+          }
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), Math.max(cfg.timeoutMs, 120000));
+          let buf;
+          try {
+            const res = await visionFetchImpl(url, { signal: ctrl.signal });
+            if (!res.ok) throw new Error('视频下载 ' + res.status);
+            buf = Buffer.from(await res.arrayBuffer());
+            if (buf.length > (cfg.video?.maxBytes || 64 * 1024 * 1024)) throw new Error('视频太大');
+          } finally { clearTimeout(timer); }
+          const out = await describeVideo(buf, { cfg, fetchImpl: visionFetchImpl, text: '' });
+          return json(res, 200, { ok: true, desc: out.desc, points: out.points, model: cfg.model, ms: out.ms, frames: out.frames });
+        }
+        const img = await fetchImage(url, { maxBytes: cfg.maxBytes, timeoutMs: cfg.timeoutMs, fetchImpl: visionFetchImpl });
+        const out = await describeImage({
+          baseUrl: cfg.baseUrl,
+          model: cfg.model,
+          apiKey: cfg.apiKey,
+          imageBase64: img.base64,
+          mime: img.mime,
+          fetchImpl: visionFetchImpl,
+          timeoutMs: cfg.timeoutMs,
+        });
+        // 试看只描述：不进任何输出、不写 seen、不占日限
+        return json(res, 200, { ok: true, desc: out.desc, points: out.points, model: out.model });
+      }
+
+      if (p === '/api/config' && req.method === 'GET') {
+        return json(res, 200, { ok: true, configPath, config: masked(readConfigFile(configPath)) });
+      }
+
+      if (p === '/api/config' && req.method === 'POST') {
+        const body = await readBody(req);
+        const cur = readConfigFile(configPath);
+        const next = { ...cur };
+        for (const k of ['enabled', 'baseUrl', 'model', 'apiKey', 'dailyCap', 'perMessage', 'maxBytes', 'timeoutMs', 'outputs', 'video', 'channels']) {
+          if (k in body) next[k] = body[k];
+        }
+        // key 打码保护：面板传空/传打码串 = 不改
+        if (!next.apiKey || next.apiKey.includes('••')) next.apiKey = cur.apiKey;
+        next.dailyCap = Math.max(1, Number(next.dailyCap) || 40);
+        next.perMessage = Math.max(1, Number(next.perMessage) || 2);
+        next.enabled = next.enabled !== false && !!next.apiKey;
+        next.outputs = Array.isArray(next.outputs) ? next.outputs : [];
+        if (next.video && typeof next.video === 'object') {
+          const v = next.video;
+          next.video = {
+            enabled: v.enabled !== false,
+            frames: Math.max(1, Math.min(10, Number(v.frames) || 3)),
+            mode: v.mode === 'even' ? 'even' : 'interval',
+            intervalSec: Math.max(1, Number(v.intervalSec) || 5),
+            maxBytes: Math.max(1048576, Number(v.maxBytes) || 67108864),
+            ffmpegPath: String(v.ffmpegPath || 'ffmpeg'),
+          };
+        } else delete next.video;
+        if (next.asr && typeof next.asr === 'object') {
+          const a = next.asr;
+          const baseUrl = String(a.baseUrl || '').trim();
+          next.asr = {
+            enabled: a.enabled === true && !!baseUrl,
+            baseUrl,
+            model: String(a.model || 'whisper-large-v3').trim() || 'whisper-large-v3',
+            apiKey: String(a.apiKey || '').trim() || (cur.asr?.apiKey ?? ''), // 留空 = 保留旧值
+            maxSeconds: Math.max(10, Math.min(600, Number(a.maxSeconds) || 120)),
+            language: String(a.language || '').trim(),
+          };
+          if (!next.asr.baseUrl) next.asr.enabled = false;
+        } else if ('asr' in next) delete next.asr;
+        if (Array.isArray(next.channels)) {
+          const oldCh = Array.isArray(cur.channels) ? cur.channels : [];
+          next.channels = next.channels
+            .map((c) => ({
+              baseUrl: String(c.baseUrl || '').trim(),
+              model: String(c.model || '').trim(),
+              apiKey: String(c.apiKey || '').trim(),
+            }))
+            .filter((c) => c.baseUrl && c.model)
+            .slice(0, 4)
+            .map((c) => {
+              if (c.apiKey) return c;
+              const old = oldCh.find((x) => x.baseUrl === c.baseUrl && x.model === c.model);
+              return { ...c, apiKey: old?.apiKey ?? '' }; // key 留空 = 按 地址+模型 保留旧值
+            });
+          // 单模型字段与第一通道保持同步（旧读取方兼容）
+          if (next.channels[0]) {
+            next.baseUrl = next.channels[0].baseUrl;
+            next.model = next.channels[0].model;
+            next.apiKey = next.channels[0].apiKey;
+          }
+        }
+        saveConfigFile(configPath, next);
+        return json(res, 200, { ok: true, config: masked(next) });
+      }
+
+      return json(res, 404, { ok: false, error: '没这个接口' });
+    } catch (e) {
+      return json(res, 500, { ok: false, error: String(e?.message ?? e) });
+    }
+  });
+
+  await new Promise((r) => server.listen(port, host, r));
+  const addr = server.address();
+  const url = `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${addr.port}`;
+
+  return { server, url, port: addr.port, close: () => new Promise((r) => server.close(r)) };
+}

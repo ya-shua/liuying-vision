@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>留影 · 视觉接入面板</title>
+<style>
+  :root {
+    --text: #eef2f8;
+    --dim: rgba(238,242,248,.56);
+    --faint: rgba(238,242,248,.30);
+    --border: rgba(255,255,255,.08);
+    --border-soft: rgba(255,255,255,.05);
+    --glass: rgba(255,255,255,.045);
+    --glass-hover: rgba(255,255,255,.09);
+    --accent: #7fb0ff;
+    --ok: #6ee7a0;
+    --bad: #ff7d7d;
+    --warn: #ffc06b;
+    --eye: #ffd479;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { color-scheme: dark; }
+  body {
+    color: var(--text);
+    font-family: "MiSans", "HarmonyOS Sans SC", "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 13px; line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(ellipse 78% 58% at 16% 8%,  rgba(255,127,168,.05), transparent 64%),
+      radial-gradient(ellipse 72% 56% at 84% 12%, rgba(126,110,170,.05), transparent 66%),
+      linear-gradient(168deg, #0a0d15 0%, #0b0f18 38%, #090c13 72%, #0a0d14 100%);
+    min-height: 100vh;
+    padding: 22px 26px 40px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  .head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .brand {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 6px 14px 6px 10px; border-radius: 999px;
+    background: rgba(10,13,21,.55); border: 1px solid var(--border-soft);
+    font-weight: 700; letter-spacing: 1px; font-size: 13.5px;
+  }
+  .brand .mark {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: radial-gradient(circle at 38% 34%, #ffe9b0, var(--eye) 55%, #b97f2e);
+    box-shadow: 0 0 12px rgba(255,212,121,.5);
+  }
+  .brand small { color: var(--faint); font-weight: 400; letter-spacing: .5px; font-size: 11px; }
+  .grow { flex: 1; }
+  .pill { padding: 3px 12px; border-radius: 999px; font-size: 12px; background: var(--glass); border: 1px solid var(--border); white-space: nowrap; }
+  .pill.ok  { color: var(--ok);  border-color: rgba(110,231,160,.4); }
+  .pill.bad { color: var(--bad); border-color: rgba(255,125,125,.4); }
+
+  /* 页签 */
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab {
+    padding: 7px 18px; border-radius: 999px; cursor: pointer; font-size: 12.5px;
+    background: var(--glass); border: 1px solid var(--border); color: var(--dim);
+    user-select: none; transition: .15s;
+  }
+  .tab:hover { color: var(--text); background: var(--glass-hover); }
+  .tab.on { color: var(--text); background: rgba(255,212,121,.12); border-color: rgba(255,212,121,.4); }
+  .view { display: none; }
+  .view.on { display: block; }
+
+  /* 设置页二级页签 */
+  .subtabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .subtab { padding: 5px 14px; border-radius: 999px; cursor: pointer; font-size: 12px;
+    background: var(--glass); border: 1px solid var(--border); color: var(--dim); user-select: none; transition: .15s; }
+  .subtab:hover { color: var(--text); background: var(--glass-hover); }
+  .subtab.on { color: var(--eye); background: rgba(255,212,121,.1); border-color: rgba(255,212,121,.35); }
+  .subview { display: none; }
+  .subview.on { display: block; }
+
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+  .stat {
+    padding: 16px 18px 14px; border-radius: 14px;
+    background: linear-gradient(168deg, rgba(10,14,22,.92), rgba(6,9,15,.96));
+    border: 1px solid rgba(255,255,255,.14);
+  }
+  .stat-label { font-size: 11.5px; color: rgba(225,232,245,.72); letter-spacing: .3px; margin-bottom: 8px; }
+  .stat-main { font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.4px; }
+  .stat-sub { margin-top: 4px; font-size: 11.5px; color: var(--faint); }
+  .stat:first-child .stat-main { color: var(--eye); }
+
+  .banner {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 16px; border-radius: 12px; margin-bottom: 16px;
+    background: rgba(255,192,107,.07); border: 1px solid rgba(255,192,107,.35);
+  }
+  .banner .b-text { flex: 1; min-width: 220px; color: var(--warn); font-size: 12.5px; }
+  .banner .b-btn { padding: 6px 14px; border-radius: 9px; cursor: pointer; font-size: 12px;
+    background: rgba(255,192,107,.14); border: 1px solid rgba(255,192,107,.45); color: var(--warn); }
+
+  .card {
+    background: rgba(10,13,21,.72); border: 1px solid var(--border); border-radius: 14px;
+    backdrop-filter: blur(14px); padding: 18px 20px; margin-bottom: 16px;
+  }
+  .card-title { font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
+  .card-desc { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+
+  .row { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+  input[type="text"], select {
+    background: var(--glass); border: 1px solid var(--border); border-radius: 9px;
+    color: var(--text); font: inherit; font-size: 12.5px; padding: 7px 11px; outline: none;
+  }
+  input[type="text"]:focus, select:focus { border-color: rgba(127,176,255,.4); }
+  /* 原生下拉的弹出列表:不加这条,深色页面里会弹出一块白底看不清 */
+  select option, select optgroup { background: #12161f; color: rgba(232,238,250,.92); }
+  select option:disabled { color: rgba(150,160,180,.5); }
+  .btn {
+    background: var(--glass); border: 1px solid var(--border); border-radius: 9px;
+    color: var(--text); font: inherit; font-size: 12.5px; padding: 7px 14px; cursor: pointer;
+  }
+  .btn:hover { background: var(--glass-hover); }
+  .btn.primary { background: rgba(127,176,255,.16); border-color: rgba(127,176,255,.45); }
+  .btn.primary:hover { background: rgba(127,176,255,.26); }
+  .btn.gold { background: rgba(255,212,121,.14); border-color: rgba(255,212,121,.45); color: var(--eye); }
+  .btn.gold:hover { background: rgba(255,212,121,.24); }
+  .count { margin-left: auto; font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; color: var(--faint); font-weight: 500; font-size: 11px; letter-spacing: .6px;
+       padding: 4px 10px 8px; border-bottom: 1px solid var(--border-soft); white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.045); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .muted { color: var(--faint); font-size: 11.5px; }
+  .url { color: var(--faint); font-size: 11px; word-break: break-all; max-width: 200px; }
+  .out-badge { padding: 1px 8px; border-radius: 999px; font-size: 11px; background: var(--glass); border: 1px solid var(--border); white-space: nowrap; display: inline-block; margin: 1px 2px 1px 0; }
+  .out-badge.ok { color: var(--ok); border-color: rgba(110,231,160,.3); }
+  .out-badge.bad { color: var(--bad); border-color: rgba(255,125,125,.3); }
+  .empty { color: var(--faint); padding: 14px 10px; }
+
+  .result { margin-top: 12px; padding: 12px 14px; border-radius: 10px;
+    background: rgba(255,212,121,.06); border: 1px solid rgba(255,212,121,.22); display: none; }
+  .result.on { display: block; }
+  .result .desc { font-size: 13px; }
+  .result .pts { margin-top: 6px; color: var(--dim); font-size: 12px; }
+  .result .pts b { color: var(--eye); font-weight: 600; }
+  .result .err { color: var(--bad); font-size: 12px; }
+
+  .form { display: grid; grid-template-columns: 130px 1fr; gap: 10px 14px; align-items: center; }
+  .form label { color: var(--dim); font-size: 12px; }
+  .form .full { grid-column: 1 / -1; }
+  .hint { font-size: 11px; color: var(--faint); }
+  .save-row { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+  .err { color: var(--bad); font-size: 12px; }
+  .ok-text { color: var(--ok); font-size: 12px; }
+
+  .savebar {
+    position: fixed; right: 26px; bottom: 18px; z-index: 30;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: 12px;
+    background: rgba(10,13,21,.9); border: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+  }
+
+  /* 接入 Key 专用卡 */
+  .key-card { border-color: rgba(255,212,121,.35);
+    background: linear-gradient(168deg, rgba(28,22,10,.8), rgba(14,11,6,.9)); }
+  .key-card .card-title { color: var(--eye); }
+  .key-row { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+  .key-row input { flex: 1; min-width: 240px; }
+  .key-state { font-size: 12px; }
+
+  /* 输出去向块:在表单网格里占满整行 */
+  .form .out-block { grid-column: 1 / -1; }
+
+  .out-block { border: 1px solid var(--border-soft); border-radius: 10px; padding: 10px 12px; margin: 2px 0; }
+  .out-block .out-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .out-block .out-head b { font-size: 12.5px; }
+  .out-fields { display: grid; grid-template-columns: 90px 1fr; gap: 7px 10px; align-items: center; }
+  .out-fields input, .out-fields select { font-size: 12px; padding: 5px 9px; }
+  .out-fields label { font-size: 11.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="brand"><span class="mark"></span>留影<small>视觉接入</small></div>
+    <div class="grow"></div>
+    <span class="pill" id="p-state">读取中…</span>
+  </div>
+
+  <div class="tabs">
+    <div class="tab on" data-view="func">功能</div>
+    <div class="tab" data-view="access">模型接入</div>
+    <div class="tab" data-view="tune">调节</div>
+    <div class="tab" data-view="outputs">输出去向</div>
+  </div>
+
+  <!-- ══════ 功能展示 ══════ -->
+  <div class="view on" id="view-func">
+    <div class="banner" id="nokey-banner" style="display:none">
+      <span class="b-text"></span>
+      <button class="b-btn" id="goto-settings">去设置接入</button>
+    </div>
+
+    <div class="metrics" id="metrics"></div>
+
+    <div class="card">
+      <div class="card-title">试看一张图</div>
+      <div class="card-desc">粘一个图链，当场让眼睛看一眼。只描述，不进任何输出、不占日限 —— 用来试 key 通不通。</div>
+      <div class="row">
+        <input type="text" id="test-url" placeholder="https://…jpg" style="flex:1;min-width:240px">
+        <button class="btn primary" id="test-go">看一眼</button>
+      </div>
+      <div class="result" id="test-result">
+        <div class="desc" id="test-desc"></div>
+        <div class="pts" id="test-pts"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">最近看过的图</div>
+      <div class="card-desc">记在眼睛自己的 eye.db 里 —— 输出适配器随便换，这本账不丢。</div>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn" id="seen-refresh">刷新</button>
+        <span class="count" id="seen-count"></span>
+      </div>
+      <table>
+        <thead><tr><th>时间</th><th>描述</th><th>输出去向</th><th style="text-align:right">耗时</th><th>图链</th></tr></thead>
+        <tbody id="seen-rows"><tr><td colspan="5" class="empty">读取中…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════ 设置 ══════ -->
+    <div class="view" id="view-access">
+    <div class="card key-card">
+      <div class="card-title">视觉模型</div>
+      <div class="card-desc">接口地址 + 模型名必填；apiKey 选填 —— 空 = 不带鉴权头，本地/免费接口直接用（参照 DeepSeek 的接法：token 空 = 不带鉴权头）。</div>
+      <div class="form">
+        <div class="full hint">每条通道 = 一个免费模型 = 一条独立限速。多个通道并发分图 —— 3 通道 ≈ 3 倍速，还摊薄单家限速。key 申请地址在每行选好模型后显示。</div>
+        <div id="ch-list" class="full" style="display:grid;gap:10px"></div>
+        <div class="full"><button class="btn" id="ch-add" type="button">＋ 添加通道（最多 4 条）</button></div>
+        <div class="save-row">
+          <button class="btn gold" id="access-save">保存接入</button>
+          <span class="key-state" id="key-state"></span>
+          <span class="hint">接入 = 登记模型地址和凭据；key 打码显示（只留尾四位），保存后即刻生效。</span>
+        </div>
+      </div>
+    </div>
+
+    </div>
+    <div class="view" id="view-tune">
+    <div class="card">
+      <div class="card-title">节奏与开关</div>
+      <div class="card-desc">整体看多少、多快。上限都按「媒体」数 —— 一张图和一段视频都算一个。</div>
+      <div class="form">
+        <label>总开关</label>
+        <select id="c-enabled"><option value="true">开</option><option value="false">关</option></select>
+        <label>一天最多看</label><input type="text" id="c-dailyCap">
+        <label>每条消息最多看</label><input type="text" id="c-perMessage">
+      </div>
+    </div>
+
+    <div class="subtabs">
+      <div class="subtab on" data-sub="photo">照片调节</div>
+      <div class="subtab" data-sub="video">视频调节</div>
+    </div>
+    <div class="subview on" id="sub-photo">
+    <div class="card">
+      <div class="card-title">照片 · 大小与读取</div>
+      <div class="card-desc">图片的读取限制。试看入口在「功能」页。</div>
+      <div class="form">
+        <label>大小上限 MB</label><input type="text" id="p-maxmb" placeholder="8">
+      </div>
+    </div>
+    </div>
+    <div class="subview" id="sub-video">
+    <div class="card">
+      <div class="card-title">视频 · 抽帧（画面）</div>
+      <div class="card-desc">视频来了先抽帧、逐帧看，描述合并成一条记忆。需要本机有 ffmpeg —— <span id="v-ffmpeg-state" class="hint">探测中…</span></div>
+      <div class="form">
+        <label>视频开关</label>
+        <select id="v-enabled"><option value="true">开</option><option value="false">关（只看图）</option></select>
+        <label>抽帧张数</label><input type="text" id="v-frames" placeholder="3">
+        <label>抽帧方式</label>
+        <select id="v-mode"><option value="interval">按间隔秒</option><option value="even">按时长均匀分布</option><option value="scene">按镜头切换（画面一变才取）</option></select>
+        <label>间隔秒</label><input type="text" id="v-interval" placeholder="5">
+        <label>ffmpeg 路径</label><input type="text" id="v-ffmpeg" placeholder="ffmpeg（在 PATH 里）或完整路径">
+        <label>大小上限 MB</label><input type="text" id="v-maxmb" placeholder="64">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">视频 · 声音转文字</div>
+      <div class="card-desc">把视频里的人说话转成文字，拼进描述（可选；没配就是默片）。OpenAI 兼容 /audio/transcriptions —— 免费 0 成本路线：Groq 免费档（<a href="https://console.groq.com" target="_blank" style="color:var(--eye)">console.groq.com</a>，地址填 https://api.groq.com/openai/v1）或本地 whisper.cpp / faster-whisper server。前提：本机有 ffmpeg。</div>
+      <div class="form">
+        <label>声音转文字</label>
+        <select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
+        <label>语音接口</label><input type="text" id="a-baseUrl" placeholder="https://api.groq.com/openai/v1 或本地服务地址">
+        <label>语音模型</label><input type="text" id="a-model" placeholder="whisper-large-v3">
+        <label>语音 key 选填</label><input type="text" id="a-apiKey" placeholder="免密服务留空">
+        <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
+      </div>
+    </div>
+
+    </div>
+    <div class="view" id="view-outputs">
+    <div class="card">
+      <div class="card-title">输出去向</div>
+      <div class="card-desc">看图之后的描述交给谁。可多选、可叠加；某个输出挂了只记它自己的错。</div>
+      <div class="form">
+        <div class="out-block">
+          <div class="out-head"><input type="checkbox" id="o-ringmind-on"><b>记忆库（Ringmind 形态，如环形的心）</b><span class="hint">描述变成一条记忆进圈；圈不填 = 由库自己定默认</span></div>
+          <div class="out-fields">
+            <label>库文件</label>
+            <div class="row" style="flex-wrap:nowrap">
+              <input type="text" id="o-ringmind-db" placeholder="要写进哪个库文件（必填）" style="flex:1">
+              <button class="btn" id="rm-discover" title="从环形的心自己的记录（data-location.json）里找库位置，自动填">自动连接</button>
+            </div>
+            <label>库名</label><input type="text" id="o-ringmind-name" placeholder="选填">
+            <label>进的圈</label>
+            <select id="o-ringmind-ring">
+              <option value="">由库自己定（推荐）</option>
+              <option value="core">core（钉住）</option>
+              <option value="ring1">ring1</option>
+              <option value="ring2">ring2</option>
+              <option value="ring3">ring3</option>
+              <option value="ring4">ring4（默认层）</option>
+              <option value="ring5">ring5</option>
+              <option value="recall">recall</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="out-block">
+          <div class="out-head"><input type="checkbox" id="o-sqlite-on"><b>SQLite 数据库（通用）</b><span class="hint">写进任何 SQLite 库的表；表不存在自动建</span></div>
+          <div class="out-fields">
+            <label>库文件</label><input type="text" id="o-sqlite-db" placeholder="要写进哪个库文件（必填）">
+            <label>表名</label><input type="text" id="o-sqlite-table" placeholder="vision_log（默认）">
+          </div>
+        </div>
+
+        <div class="out-block">
+          <div class="out-head"><input type="checkbox" id="o-jsonl-on"><b>JSONL 文件</b><span class="hint">每看一张追加一行，任何系统都能读</span></div>
+          <div class="out-fields">
+            <label>文件路径</label><input type="text" id="o-jsonl-file" placeholder="D:/…/vision-log.jsonl">
+          </div>
+        </div>
+
+        <div class="out-block">
+          <div class="out-head"><input type="checkbox" id="o-md-on"><b>Markdown 笔记</b><span class="hint">每看一个媒体追加一节，Obsidian 等直接打开</span></div>
+          <div class="out-fields">
+            <label>文件路径</label><input type="text" id="o-md-file" placeholder="D:/…/notes/留影.md">
+          </div>
+        </div>
+
+        <div class="out-block">
+          <div class="out-head"><input type="checkbox" id="o-webhook-on"><b>Webhook</b><span class="hint">每看一张 POST 一份 JSON 到你的地址</span></div>
+          <div class="out-fields">
+            <label>地址</label><input type="text" id="o-webhook-url" placeholder="http://…/hook">
+          </div>
+        </div>
+
+        <div class="out-block">
+          <div class="out-head"><input type="checkbox" id="o-custom-on"><b>自定义脚本</b><span class="hint">指向你自己的 .mjs（导出 deliver(item, cfg)），任何系统都能接</span></div>
+          <div class="out-fields">
+            <label>脚本路径</label><input type="text" id="o-custom-file" placeholder="D:/…/my-adapter.mjs">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <div class="savebar">
+      <span class="hint" id="c-hint">设置保存在 vision.json（数据目录里）</span>
+      <button class="btn primary" id="c-save">保存设置</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clock = (ts) => ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false }) : '—';
+const OUT_TYPES = { ringmind: '环形的心', sqlite: 'SQLite', jsonl: 'JSONL', markdown: 'Markdown', webhook: 'Webhook', custom: '自定义' };
+let currentCfg = { outputs: [] };
+
+/* 页签切换 */
+document.querySelectorAll('.tab').forEach((t) => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('on'));
+    document.querySelectorAll('.view').forEach((x) => x.classList.remove('on'));
+    t.classList.add('on');
+    $('view-' + t.dataset.view).classList.add('on');
+  });
+});
+function gotoSettings() {
+  document.querySelector('.tab[data-view="settings"]').click();
+}
+document.querySelectorAll('.subtab').forEach((t) => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.subtab').forEach((x) => x.classList.remove('on'));
+    document.querySelectorAll('.subview').forEach((x) => x.classList.remove('on'));
+    t.classList.add('on');
+    $('sub-' + t.dataset.sub).classList.add('on');
+  });
+});
+function gotoSub(name) { document.querySelector('.subtab[data-sub="' + name + '"]').click(); }
+function gotoTab(view, sub) {
+  document.querySelector('.tab[data-view="' + view + '"]').click();
+  if (sub) gotoSub(sub);
+}
+$('goto-settings').addEventListener('click', () => gotoTab('outputs'));
+
+/* 状态 + 磁贴 + 引导横幅 */
+async function loadStatus() {
+  const r = await fetch('/api/status').then((x) => x.json());
+  const cfg = r.config;
+  currentCfg = cfg;
+  const state = $('p-state');
+  const outs = (cfg.outputs ?? []).filter((o) => o.enabled !== false);
+  if (outs.length && cfg.enabled) {
+    state.textContent = '开着 · ' + cfg.model + ' → ' + outs.map((o) => OUT_TYPES[o.type] || o.type).join('/');
+    state.className = 'pill ok';
+  } else {
+    state.textContent = !outs.length ? '没选输出去向' : '已停用';
+    state.className = 'pill bad';
+  }
+  // 引导横幅:没 key / 没去向,在功能页顶上提醒
+  const banner = $('nokey-banner');
+  const bText = banner.querySelector('.b-text');
+  if (!outs.length) { banner.style.display = 'flex'; bText.textContent = '还没选「输出去向」—— 描述没有地方可去，去设置里勾一个。'; }
+  else banner.style.display = 'none';
+
+  $('metrics').innerHTML = [
+    ['今天已看', r.usage.seenToday + ' 张', '日限 ' + cfg.dailyCap + ' 张'],
+    ['累计看过', r.usage.totalSeen + ' 张', r.usage.lastSeenAt ? '最近 ' + clock(r.usage.lastSeenAt) : '还没开张'],
+    ['模型', esc(cfg.model), (cfg.channels?.length > 1 ? cfg.channels.length + ' 通道并发 · ' : '') + (cfg.apiKeySet ? 'key …' + esc(cfg.apiKeyTail) : '免密')],
+    ['输出去向', outs.length ? outs.map((o) => OUT_TYPES[o.type] || o.type).join(' / ') : '（没选）', '可叠加，互不拖累'],
+    ['视频', (cfg.video?.enabled !== false ? '开 · ' + (cfg.video?.frames ?? 3) + '帧' : '关'), r.ffmpeg ? 'ffmpeg ✓' : '未装 ffmpeg — 视频跳过'],
+  ].map(([l, m, s]) =>
+    `<div class="stat"><div class="stat-label">${l}</div><div class="stat-main">${m}</div><div class="stat-sub">${s}</div></div>`
+  ).join('');
+  const vs = $('v-ffmpeg-state');
+  if (vs) vs.textContent = r.ffmpeg ? '已检测到 ffmpeg ✓' : '未检测到 ffmpeg —— 视频会自动跳过（ffmpeg.org 下载，或在下面填完整路径）';
+  fillConfig(cfg);
+}
+
+function ringName(r) {
+  return { core: '圆心', ring1: '一圈', ring2: '二圈', ring3: '三圈', ring4: '闲聊圈', ring5: '模糊圈', recall: '回忆圈' }[r] || r;
+}
+
+function outBadge(o) {
+  const name = OUT_TYPES[o.type] || o.type;
+  if (o.ok) {
+    const extra = o.memoryId ? ' · 记忆 ' + esc(String(o.memoryId).slice(0, 10)) : (o.file ? ' · ' + esc(o.file.split(/[\\/]/).pop()) : (o.status ? ' · ' + o.status : ''));
+    return `<span class="out-badge ok">${esc(name)}✓${extra}</span>`;
+  }
+  return `<span class="out-badge bad" title="${esc(o.error || '')}">${esc(name)}✗</span>`;
+}
+
+async function loadSeen() {
+  const r = await fetch('/api/seen?limit=50').then((x) => x.json()).catch(() => null);
+  const body = $('seen-rows');
+  if (!r || !r.ok) { body.innerHTML = '<tr><td colspan="5" class="empty">' + esc(r?.error || '读不到') + '</td></tr>'; return; }
+  $('seen-count').textContent = '共 ' + r.rows.length + ' 条';
+  body.innerHTML = r.rows.length
+    ? r.rows.map((v) =>
+        `<tr><td class="muted" style="white-space:nowrap">${clock(v.created_at)}</td>` +
+        `<td>${v.kind === 'video' ? '<span class="out-badge">视频·' + esc(String(v.frames ?? '?')) + '帧</span> ' : ''}${esc(v.desc)}</td>` +
+        `<td>${(v.outputs || []).map(outBadge).join('') || '<span class="muted">（无输出）</span>'}</td>` +
+        `<td class="muted" style="text-align:right;white-space:nowrap">${fmtMs(v.ms)}</td>` +
+        `<td class="url" title="${esc(v.url)}">${esc(v.url.length > 44 ? v.url.slice(0, 44) + '…' : v.url)}</td></tr>`
+      ).join('')
+    : '<tr><td colspan="5" class="empty">还没看过任何图。QQ 里发一张，或用上面的「试看」。</td></tr>';
+}
+
+  /* 模型目录 + 并发通道列表（每条通道 = 一个免费模型 = 一条限速） */
+  let MODELS_CACHE = [];
+  const fmtMs = (ms) => ms == null ? '—' : (ms < 1000 ? ms + 'ms' : (ms / 1000).toFixed(1) + 's');
+  async function ensureCatalog() {
+    if (MODELS_CACHE.length) return;
+    const r = await fetch('/api/models').then((x) => x.json()).catch(() => null);
+    MODELS_CACHE = r?.models ?? [];
+  }
+  const chOptions = (picked) => MODELS_CACHE.map((m) => {
+    const v = m.baseUrl + '|' + m.id;
+    return `<option value="${esc(v)}"${v === picked ? ' selected' : ''}>${esc(m.label)} · ${m.free ? '免费' : '收费'} · 延迟${esc(m.latency)}</option>`;
+  }).join('') + `<option value="__custom"${picked === '__custom' ? ' selected' : ''}>自定义（手填地址和模型）</option>`;
+
+  function chHint(m) {
+    return m ? `${esc(m.note)}｜key 申请：<a href="${esc(m.keyUrl)}" target="_blank" style="color:var(--eye)">${esc(m.keyUrl)}</a>` : '自定义：手填下面的接口地址和模型名（任何 OpenAI 兼容视觉接口）。';
+  }
+
+  function chRowHtml(i, ch, total) {
+    const picked = ch ? ch.baseUrl + '|' + ch.model : '__custom';
+    const keyPh = ch?.apiKeySet ? '已配置（…' + esc(ch.apiKeyTail || '') + '），留空 = 不改' : '要鉴权的接口才填；本地/免费接口留空';
+    return `<div class="out-block ch-row">
+      <div class="out-head"><b>通道 ${i + 1}</b><span class="ch-hint hint"></span>${total > 1 ? '<button class="btn ch-del" type="button">删掉</button>' : ''}</div>
+      <div class="out-fields">
+        <label>快捷选择</label><select class="ch-pick">${chOptions(picked)}</select>
+        <label>接口地址</label><input type="text" class="ch-baseUrl" placeholder="OpenAI 兼容接口地址" value="${esc(ch?.baseUrl ?? '')}">
+        <label>模型</label><input type="text" class="ch-model" placeholder="模型 ID" value="${esc(ch?.model ?? '')}">
+        <label>apiKey 选填</label><input type="text" class="ch-apiKey" placeholder="${keyPh}">
+      </div>
+    </div>`;
+  }
+
+  function bindChRow(row) {
+    const pick = row.querySelector('.ch-pick');
+    const hintEl = row.querySelector('.ch-hint');
+    const sync = () => {
+      const v = pick.value;
+      if (v === '__custom') { hintEl.textContent = ''; return; }
+      const m = MODELS_CACHE.find((x) => x.baseUrl + '|' + x.id === v);
+      if (!m) { hintEl.textContent = ''; return; }
+      row.querySelector('.ch-baseUrl').value = m.baseUrl;
+      row.querySelector('.ch-model').value = m.id;
+      hintEl.innerHTML = chHint(m);
+    };
+    pick.addEventListener('change', sync);
+    sync();
+    const del = row.querySelector('.ch-del');
+    if (del) del.addEventListener('click', () => { row.remove(); });
+  }
+
+  function renderChannels(cfg) {
+    if (!MODELS_CACHE.length) { ensureCatalog().then(() => renderChannels(cfg)); return; }
+    const list = Array.isArray(cfg.channels) && cfg.channels.length
+      ? cfg.channels
+      : (cfg.baseUrl ? [{ baseUrl: cfg.baseUrl, model: cfg.model, apiKeySet: cfg.apiKeySet, apiKeyTail: cfg.apiKeyTail }] : [{}]);
+    const listEl = $('ch-list');
+    listEl.innerHTML = list.slice(0, 4).map((ch, i) => chRowHtml(i, ch, Math.max(1, Math.min(4, list.length)))).join('');
+    listEl.querySelectorAll('.ch-row').forEach(bindChRow);
+  }
+
+  function collectChannels() {
+    return [...document.querySelectorAll('#ch-list .ch-row')]
+      .map((row) => ({
+        baseUrl: row.querySelector('.ch-baseUrl').value.trim(),
+        model: row.querySelector('.ch-model').value.trim(),
+        apiKey: row.querySelector('.ch-apiKey').value.trim(),
+      }))
+      .filter((c) => c.baseUrl && c.model);
+  }
+
+/* 回填两张表单 */
+/* 记忆库自动连接：读环形的心自己的 data-location.json，不用手抄路径 */
+let ringDiscovered = false;
+async function discoverRing() {
+  const r = await fetch('/api/discover-ring').then((x) => x.json()).catch(() => null);
+  if (r?.ok && r.dbPath) {
+    $('o-ringmind-db').value = r.dbPath;
+    if (r.name) $('o-ringmind-name').value = r.name;
+    return true;
+  }
+  return false;
+}
+
+function fillConfig(cfg) {
+  $('c-enabled').value = cfg.enabled ? 'true' : 'false';
+  renderChannels(cfg);
+  $('c-dailyCap').value = cfg.dailyCap;
+  $('c-perMessage').value = cfg.perMessage;
+  const find = (type) => (cfg.outputs ?? []).find((o) => o.type === type);
+  const rm = find('ringmind');
+  $('o-ringmind-on').checked = !!(rm && rm.enabled !== false);
+  $('o-ringmind-db').value = rm?.dbPath ?? '';
+  if (!rm && !ringDiscovered && !$('o-ringmind-db').value) {
+    ringDiscovered = true; // 只自动找一次：找到就静默填上，用户仍可改
+    discoverRing();
+  }
+  $('o-ringmind-name').value = rm?.name ?? '';
+  $('o-ringmind-ring').value = rm?.ring ?? '';
+  const jl = find('jsonl');
+  $('o-jsonl-on').checked = !!(jl && jl.enabled !== false);
+  $('o-jsonl-file').value = jl?.file ?? '';
+  const wh = find('webhook');
+  $('o-webhook-on').checked = !!(wh && wh.enabled !== false);
+  $('o-webhook-url').value = wh?.url ?? '';
+  $('v-enabled').value = (cfg.video?.enabled !== false) ? 'true' : 'false';
+  $('v-frames').value = cfg.video?.frames ?? 3;
+  $('v-mode').value = cfg.video?.mode ?? 'interval';
+  $('v-interval').value = cfg.video?.intervalSec ?? 5;
+  $('v-ffmpeg').value = cfg.video?.ffmpegPath ?? 'ffmpeg';
+  $('v-maxmb').value = Math.round((cfg.video?.maxBytes ?? 67108864) / 1048576);
+  $('p-maxmb').value = Math.round((cfg.maxBytes ?? 8388608) / 1048576);
+  $('a-enabled').value = (cfg.asr?.enabled && cfg.asr?.baseUrl) ? 'true' : 'false';
+  $('a-baseUrl').value = cfg.asr?.baseUrl ?? '';
+  $('a-model').value = cfg.asr?.model ?? 'whisper-large-v3';
+  $('a-apiKey').value = '';
+  $('a-apiKey').placeholder = (cfg.asr?.apiKeySet || cfg.asr?.apiKey) ? '已配置，留空 = 不改' : '免密服务留空';
+  $('a-maxsec').value = cfg.asr?.maxSeconds ?? 120;
+}
+
+function collectOutputs() {
+  const keep = (currentCfg.outputs ?? []).filter((o) => !['ringmind', 'jsonl', 'webhook'].includes(o.type));
+  const out = [...keep];
+  if ($('o-ringmind-on').checked) {
+    const ring = $('o-ringmind-ring').value;
+    out.push({ type: 'ringmind', enabled: true, dbPath: $('o-ringmind-db').value.trim(), name: $('o-ringmind-name').value.trim(), ...(ring ? { ring } : {}), skipVault: true });
+  }
+  if ($('o-jsonl-on').checked && $('o-jsonl-file').value.trim()) {
+    out.push({ type: 'jsonl', enabled: true, file: $('o-jsonl-file').value.trim() });
+  }
+  if ($('o-webhook-on').checked && $('o-webhook-url').value.trim()) {
+  if ($('o-sqlite-on').checked && $('o-sqlite-db').value.trim()) {
+    out.push({ type: 'sqlite', enabled: true, dbPath: $('o-sqlite-db').value.trim(), table: $('o-sqlite-table').value.trim() || 'vision_log' });
+  }
+  if ($('o-md-on').checked && $('o-md-file').value.trim()) {
+    out.push({ type: 'markdown', enabled: true, file: $('o-md-file').value.trim() });
+  }
+  if ($('o-custom-on').checked && $('o-custom-file').value.trim()) {
+    out.push({ type: 'custom', enabled: true, file: $('o-custom-file').value.trim() });
+  }
+    out.push({ type: 'webhook', enabled: true, url: $('o-webhook-url').value.trim() });
+  }
+  return out;
+}
+
+function collectVideo() {
+  return {
+    enabled: $('v-enabled').value === 'true',
+    frames: Number($('v-frames').value) || 3,
+    mode: $('v-mode').value,
+    intervalSec: Number($('v-interval').value) || 5,
+    ffmpegPath: $('v-ffmpeg').value.trim() || 'ffmpeg',
+    maxBytes: (Number($('v-maxmb').value) || 64) * 1048576,
+    asr: {
+      enabled: $('a-enabled').value === 'true' && !!$('a-baseUrl').value.trim(),
+      baseUrl: $('a-baseUrl').value.trim(),
+      model: $('a-model').value.trim() || 'whisper-large-v3',
+      apiKey: $('a-apiKey').value.trim(),
+      maxSeconds: Math.max(10, Math.min(600, Number($('a-maxsec').value) || 120)),
+      language: '',
+    },
+  };
+}
+
+/* 接入 Key:单独保存,即刻生效 */
+/* 模型接入:保存地址/模型/可选 key,即刻生效 */
+$('access-save').addEventListener('click', async () => {
+  const channels = collectChannels();
+  const el = $('key-state');
+  if (!channels.length) { el.textContent = '至少要有一条通道（接口地址 + 模型名）'; el.className = 'key-state err'; return; }
+  const r = await fetch('/api/config', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ channels, enabled: true }),
+  }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
+  if (r.ok) {
+    el.textContent = '✓ 已接入 ' + channels.length + ' 条通道' + (channels.length > 1 ? '（并发加速）' : '');
+    el.className = 'key-state ok-text';
+    loadStatus();
+  } else {
+    el.textContent = '没存成：' + (r.error || '?');
+    el.className = 'key-state err';
+  }
+});
+
+/* 试看 */
+$('test-go').addEventListener('click', async () => {
+  const box = $('test-result');
+  box.classList.add('on');
+  $('test-desc').textContent = '看着…';
+  $('test-pts').textContent = '';
+  $('test-pts').className = 'pts';
+  try {
+    const r = await fetch('/api/test', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: $('test-url').value.trim() }),
+    }).then((x) => x.json());
+    if (!r.ok) throw new Error(r.error || '没看成');
+    $('test-desc').textContent = r.desc;
+    $('test-pts').innerHTML = r.points.length ? '要点：<b>' + r.points.map(esc).join('</b> · <b>') + '</b>' : '（模型没给要点）';
+    $('test-ms').textContent = (r.ms != null ? '识别耗时 ' + fmtMs(r.ms) : '') + (r.frames ? ' · ' + r.frames + ' 帧' : '');
+  } catch (e) {
+    $('test-desc').textContent = '没看成';
+    $('test-pts').textContent = e.message;
+    $('test-pts').className = 'pts err';
+  }
+});
+
+/* 保存设置(去向 + 参数) */
+$('c-save').addEventListener('click', async () => {
+  const r = await fetch('/api/config', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      enabled: $('c-enabled').value === 'true',
+      dailyCap: Number($('c-dailyCap').value) || 40,
+      perMessage: Number($('c-perMessage').value) || 2,
+      outputs: collectOutputs(),
+      video: collectVideo(),
+      maxBytes: (Number($('p-maxmb').value) || 8) * 1048576,
+    }),
+  }).then((x) => x.json());
+  $('c-hint').textContent = r.ok ? '已保存 ' + r.configPath : ('没存成：' + (r.error || '?'));
+  loadStatus();
+});
+
+$('rm-discover').addEventListener('click', async () => {
+  const ok = await discoverRing();
+  const b = $('rm-discover');
+  b.textContent = ok ? '✓ 已自动填入' : '没找到';
+  setTimeout(() => (b.textContent = '自动连接'), 2500);
+});
+$('seen-refresh').addEventListener('click', loadSeen);
+loadStatus();
+loadSeen();
+</script>
+</body>
+</html>

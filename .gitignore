@@ -1,0 +1,15 @@
+# 运行时数据：审计库 / 面板配置 / 抽帧临时文件（不进仓库）
+data/
+src/data/
+*.log
+
+# 本机环境：node 可执行文件位置（各人不同）
+node-path.txt
+
+# 内部设计文档（暂不随插件发布）
+docs/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini

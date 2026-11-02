@@ -1,0 +1,376 @@
+/**
+ * 留影 · 通用视觉接入编排层（2026-10-31 设计，11-01 扩展视频）
+ *
+ * 独立插件，不绑任何记忆库：核心只做「看媒体 → 描述」，看完了交给**输出适配器**。
+ * 内置适配器（vision.json 的 outputs 里按需启用、可叠加、互不拖累）：
+ *
+ *   ringmind —— 写进环形的心记忆库（可选适配器之一，动态 import，库零改动）
+ *   sqlite   —— 通用 SQLite 表（任何系统的库，表不存在自动建）
+ *   jsonl    —— 追加进一个 .jsonl 文件
+ *   markdown —— 追加进一个 .md 笔记（Obsidian 友好）
+ *   webhook  —— POST JSON 到任意地址
+ *   custom   —— 指向你自己的 .mjs（导出 deliver 即可接任何系统）
+ *
+ * 媒体：图片 + 视频。视频按用户配置抽帧（ffmpeg），每帧描述合并成一条记忆。
+ * 没装 ffmpeg → 视频跳过并在面板提示，图片照常。
+ *
+ * 两条铁律：
+ *   ① 去重/日限/审计记在眼睛自己的 eye.db 里 —— 换输出、删输出，账本不受影响
+ *   ② 下载失败 / 某个输出挂了 / 视频抽帧失败 → 静默跳过或单独记错，
+ *      绝不影响消息主流程，也不拖累其它输出
+ *
+ * 桥接侧（qq-bridge/src/bridge.js）两行补丁（调用点动态 import，已打好）：
+ *   import('file:///…/留影/src/ring-vision.mjs').then((m) => m.visionNote({…}).catch(…)).catch(…)
+ */
+
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import { runPool } from './pool.mjs';
+import { extractMedia, stripCq } from './cq.mjs';
+import { describeImage } from './describe.mjs';
+import { extractFrames, ffmpegAvailable } from './video.mjs';
+import { extractAudio, transcribeAudio } from './audio.mjs';
+import { openEyeStore } from './store.mjs';
+import * as ringmind from './adapters/ringmind.mjs';
+import * as sqlite from './adapters/sqlite.mjs';
+import * as jsonl from './adapters/jsonl.mjs';
+import * as markdown from './adapters/markdown.mjs';
+import * as webhook from './adapters/webhook.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = dirname(HERE); // 项目根（src 的上一级）
+const ADAPTERS = { ringmind, sqlite, jsonl, markdown, webhook };
+const customCache = new Map(); // file → 模块
+
+const urlHash = (url) => createHash('sha256').update(String(url)).digest('hex').slice(0, 24);
+
+/** 生效的模型通道列表:channels 优先,退回单模型字段;最多 4 条(并发上限) */
+function buildChannels(cfg) {
+  const list = (Array.isArray(cfg.channels) ? cfg.channels : [])
+    .filter((c) => c && c.baseUrl && c.model)
+    .map((c) => ({ baseUrl: c.baseUrl, model: c.model, apiKey: c.apiKey || '' }))
+    .slice(0, 4);
+  if (list.length) return list;
+  if (cfg.baseUrl && cfg.model) return [{ baseUrl: cfg.baseUrl, model: cfg.model, apiKey: cfg.apiKey || '' }];
+  return [];
+}
+
+const dayStartOf = (now) => {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+};
+
+/** 解析一个输出适配器：内置表 or 自定义脚本（cfg.file，须导出 deliver） */
+async function resolveAdapter(o) {
+  if (ADAPTERS[o.type]) return ADAPTERS[o.type];
+  if (o.type === 'custom' && o.file) {
+    if (!customCache.has(o.file)) customCache.set(o.file, await import(pathToFileURL(o.file).href));
+    const mod = customCache.get(o.file);
+    if (typeof mod.deliver !== 'function') throw new Error(`自定义适配器缺 deliver()：${o.file}`);
+    return { deliver: mod.deliver };
+  }
+  return null;
+}
+
+/** 拉图：限时、限大小、只收图片 */
+export async function fetchImage(url, { maxBytes, timeoutMs, fetchImpl }) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await fetchImpl(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`图片下载 ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > maxBytes) throw new Error(`图片太大（${Math.round(buf.length / 1024)}KB）`);
+    const mime = String(res.headers.get('content-type') || 'image/jpeg').split(';')[0];
+    if (!mime.startsWith('image/')) throw new Error(`不是图片（${mime}）`);
+    return { base64: buf.toString('base64'), mime };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const VIDEO_EXT = /\.(mp4|mov|avi|mkv|webm|m4v|flv|ts)(\?|$)/i;
+export const isVideoUrl = (url) => VIDEO_EXT.test(String(url));
+const isGifUrl = (url) => /\.gif(\?|$)/i.test(String(url));
+
+/** 默认配置：outputs 为空时只描述不落盘（面板的「试看」不依赖输出） */
+export function defaultVisionConfig() {
+  return {
+    enabled: false,                                    // 面板开关（与 key 解耦：免密接口不用填）
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    model: 'glm-4v-flash',
+    apiKey: '',                                        // 选填：空 = 不带鉴权头（免密/本地接口）
+    dailyCap: 40,                                      // 一天最多看多少个媒体，防着刷屏刷爆
+    perMessage: 2,                                     // 一条消息最多看几个媒体
+    maxBytes: 8 * 1024 * 1024,                         // 图太大不看（8MB）
+    timeoutMs: 45000,
+    outputs: [],                                       // 输出适配器列表（见 docs）
+    video: {                                           // 视频设置（全部用户可配）
+      enabled: true,                                   // 视频开关（关 = 只看图）
+      frames: 3,                                       // 抽几帧
+      mode: 'interval',                                // interval=按间隔秒 | even=按时长均匀 | scene=按镜头切换
+      intervalSec: 5,                                  // interval 模式的间隔秒
+      maxBytes: 64 * 1024 * 1024,                      // 视频太大不看（64MB）
+      ffmpegPath: 'ffmpeg',                            // ffmpeg 可执行文件路径
+    },
+    asr: {                                             // 声音转文字（可选；视频里有人说话才值得开）
+      enabled: false,                                  // 没配语音服务就是关
+      baseUrl: '',                                     // OpenAI 兼容 /audio/transcriptions（Groq 免费档 / 本地 whisper server）
+      model: 'whisper-large-v3',
+      apiKey: '',                                      // 选填（免密服务留空）
+      maxSeconds: 120,                                 // 最长转写多少秒（控制量）
+      language: '',                                    // 选填，如 zh；留空自动检测
+    },
+  };
+}
+
+/**
+ * 读配置：vision.json → 环境变量覆盖。
+ * 文件位置：dataDir → 环境变量 RING_VISION_DATA → 项目根 data/。
+ */
+export function loadVisionConfig({ dataDir } = {}) {
+  const cfg = defaultVisionConfig();
+  const dir = dataDir || process.env.RING_VISION_DATA || join(ROOT, 'data'); // 和面板默认一致：项目根 data/
+  const file = join(dir, 'vision.json');
+  let fileCfg = null;
+  try {
+    if (existsSync(file)) {
+      const parsed = JSON.parse(readFileSync(file, 'utf8'));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) fileCfg = parsed;
+    }
+  } catch (e) {
+    // 配置坏了不当灾难：按默认走，但要让日志看得见是「配置坏了」而不是「没开」
+    console.error('[留影] vision.json 读取失败，按默认配置走：', e?.message ?? e);
+  }
+  Object.assign(cfg, fileCfg ?? {});
+  cfg.apiKey = process.env.RING_VISION_KEY || cfg.apiKey || '';
+  if (process.env.RING_VISION_MODEL) cfg.model = process.env.RING_VISION_MODEL;
+  if (process.env.RING_VISION_BASE_URL) cfg.baseUrl = process.env.RING_VISION_BASE_URL;
+  cfg.enabled = cfg.enabled !== false;
+  // video / asr 深合并：文件里只写一部分也不丢默认值
+  cfg.video = { ...defaultVisionConfig().video, ...(fileCfg?.video ?? {}) };
+  cfg.asr = { ...defaultVisionConfig().asr, ...(fileCfg?.asr ?? {}) };
+  cfg.dataDir = dir;
+  return cfg;
+}
+
+/** 看一段视频/动图：抽帧 → 逐帧描述 → 合并成一条（调用方保证 ffmpeg 可用）
+ *  audio=true 时再抽音轨转文字（视频；动图没声音不抽） */
+export async function describeVideo(videoBuffer, { cfg, channels, fetchImpl, text, label = '视频', frames, mode, intervalSec, audio = false, spawnImpl } = {}) {
+  const v = cfg.video ?? {};
+  const ex = await extractFrames({
+    buffer: videoBuffer, ffmpegPath: v.ffmpegPath || 'ffmpeg',
+    frames: frames ?? v.frames, mode: mode ?? v.mode, intervalSec: intervalSec ?? v.intervalSec,
+    tmpDir: join(cfg.dataDir, 'tmp'), timeoutMs: Math.max(cfg.timeoutMs, 120000), spawnImpl,
+  });
+  const chs = channels?.length ? channels : buildChannels(cfg);
+  // 帧级并发:各帧分给各通道,一段视频的 N 帧 ≈ 一帧的耗时
+  const frameOut = await runPool(ex.frames, Math.min(chs.length, 4), async (f, wi) => {
+    const ch = chs[wi % chs.length];
+    return describeImage({
+      baseUrl: ch.baseUrl,
+      model: ch.model,
+      apiKey: ch.apiKey,
+      imageBase64: f.base64,
+      mime: f.mime,
+      hint: `这是一段${label}的第 ${f.frame} 帧。` + stripCq(text).slice(0, 100),
+      fetchImpl,
+      timeoutMs: cfg.timeoutMs,
+    });
+  });
+  const descs = [];
+  const pts = [];
+  let ms = 0;
+  for (const r of frameOut) {
+    if (!r.ok) { console.error(`[留影] ✗ 一帧没看出（不影响其它帧）：${r.error?.message ?? r.error}`); continue; }
+    const out = r.value;
+    ms += out.ms || 0;
+    if (out.desc) descs.push(out.desc);
+    for (const p of out.points) if (!pts.includes(p)) pts.push(p);
+  }
+  if (!descs.length) throw new Error('各帧都没看出内容');
+  const dur = ex.durationSec ? `/${ex.durationSec}秒` : '';
+  // 声音转文字（可选）：失败只记日志，画面描述照常返回
+  let audioPart = '';
+  if (audio && cfg.asr?.enabled && cfg.asr.baseUrl) {
+    try {
+      const t0 = Date.now();
+      const audio = await extractAudio({
+        buffer: videoBuffer, ffmpegPath: v.ffmpegPath || 'ffmpeg',
+        maxSeconds: cfg.asr.maxSeconds || 120,
+        tmpDir: join(cfg.dataDir, 'tmp'), spawnImpl,
+      });
+      if (audio) {
+        const tr = await transcribeAudio({
+          audioBuffer: audio.buffer,
+          baseUrl: cfg.asr.baseUrl, model: cfg.asr.model, apiKey: cfg.asr.apiKey,
+          language: cfg.asr.language, fetchImpl, timeoutMs: 90000,
+        });
+        ms += Date.now() - t0;
+        if (tr.text) audioPart = `\n声音：「${tr.text}」`;
+      }
+    } catch (e) {
+      console.error(`[留影] ✗ 声音转文字失败（画面描述照常）：${e?.message ?? e}`);
+    }
+  }
+  return {
+    desc: `${label}（${ex.frames.length} 帧${dur}）：` + descs.join('；').slice(0, 200) + audioPart,
+    points: pts.slice(0, 6),
+    ms,
+    frames: ex.frames.length,
+  };
+}
+
+/**
+ * 主入口：一条消息进来，看有没有媒体（图/视频），有就看、看完扇出给所有输出。
+ * 永不抛错（bridge 那边 fire-and-forget），结果用返回值带回来。
+ *
+ * @param {object} input  { images?, videos?, key, sender, text, at? }
+ * @param {object} [opts] { fetchImpl?, cfg?, dataDir?, store? } —— 测试注入用
+ */
+export async function visionNote(input, opts = {}) {
+  const { key = '', sender = 'user', text = '', at = Date.now() } = input ?? {};
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const ffmpegProbe = opts.ffmpegProbe ?? ffmpegAvailable; // 测试可注入
+  try {
+    const cfg = opts.cfg ?? loadVisionConfig({ dataDir: opts.dataDir });
+    if (!cfg.dataDir) cfg.dataDir = join(ROOT, 'data'); // 注入的 cfg 也兜底，别让 openEyeStore 收到 undefined
+    if (!cfg.enabled) return { ok: true, skipped: 'disabled' };
+
+    const outputs = (cfg.outputs ?? []).filter((o) => o && o.enabled !== false && (ADAPTERS[o.type] || (o.type === 'custom' && o.file)));
+    if (!outputs.length) return { ok: true, skipped: 'no-outputs' };
+
+    // 媒体来源通用化：调用方可以直接给 images/videos 数组（任何平台）；
+    // 没给就从 text 里抽（OneBot/CQ 风格是一种常见约定，不是硬性要求）
+    const explicit = (input.images?.length || input.videos?.length)
+      ? { images: input.images ?? [], videos: input.videos ?? [] }
+      : extractMedia(text);
+    const media = [
+      ...explicit.images.map((u) => ({ url: String(u), kind: 'image' })),
+      ...explicit.videos.map((u) => ({ url: String(u), kind: 'video' })),
+    ].slice(0, Math.max(1, cfg.perMessage));
+    if (!media.length) return { ok: true, skipped: 'no-media' };
+
+    const store = opts.store ?? openEyeStore(cfg.dataDir);
+
+    const dayStart = dayStartOf(at);
+    const seenToday = store.seenToday(dayStart);
+    if (seenToday >= cfg.dailyCap) {
+      console.error(`[留影] 今天已看 ${seenToday} 个媒体，到日限了，剩下的跳过`);
+      return { ok: true, skipped: 'daily-cap' };
+    }
+
+    const channels = buildChannels(cfg);
+    if (!channels.length) return { ok: true, skipped: 'no-model' };
+
+    const results = new Array(media.length);
+
+    // 通道池:每个免费模型一条通道,媒体在通道间并行分发 —— N 条通道 ≈ N 倍速
+    await runPool(media, Math.min(channels.length, 4), async (m, wi, idx) => {
+      const url = m.url;
+      let kind = m.kind;
+      const ch = channels[wi % channels.length];
+      const hash = urlHash(kind + '|' + url);
+      if (store.hasSeen(hash)) { results[idx] = { url, kind, skipped: 'seen' }; return; }
+
+      let desc, points, ms, frames;
+
+      if (kind === 'video') {
+        // 视频：多步且容易失败 → 单条容错，一个视频坏了不拖累其它媒体
+        const v = cfg.video ?? {};
+        if (v.enabled === false) { results[idx] = { url, kind, skipped: 'video-disabled' }; return; }
+        if (!(await ffmpegProbe(v.ffmpegPath || 'ffmpeg'))) {
+          results[idx] = { url, kind, skipped: 'no-ffmpeg' };
+          return;
+        }
+        try {
+          // 先下载到本地（视频可能很大，单独限量）
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), v.timeoutMs || 120000);
+          let buf;
+          try {
+            const res = await fetchImpl(url, { signal: ctrl.signal });
+            if (!res.ok) throw new Error(`视频下载 ${res.status}`);
+            buf = Buffer.from(await res.arrayBuffer());
+            if (buf.length > (v.maxBytes || 64 * 1024 * 1024)) throw new Error(`视频太大（${Math.round(buf.length / 1048576)}MB）`);
+          } finally {
+            clearTimeout(timer);
+          }
+          const out = await describeVideo(buf, { cfg, channels, fetchImpl, text, audio: true, spawnImpl: opts.spawnImpl });
+          desc = out.desc; points = out.points; ms = out.ms; frames = out.frames;
+        } catch (e) {
+          console.error(`[留影] ✗ 视频没看成：${e?.message ?? e}`);
+          results[idx] = { url, kind, error: String(e?.message ?? e) };
+          return;
+        }
+      } else {
+        // 图片 / 动图
+        const img = await fetchImage(url, { maxBytes: cfg.maxBytes, timeoutMs: cfg.timeoutMs, fetchImpl });
+
+        // GIF 动图：视觉模型一般不认 gif，抽 2~3 帧当图看；没 ffmpeg → 跳过（多帧容错，不拖累其它媒体）
+        if (isGifUrl(url) || img.mime === 'image/gif') {
+          const v = cfg.video ?? {};
+          if (!(await ffmpegProbe(v.ffmpegPath || 'ffmpeg'))) {
+            console.error('[留影] ✗ 动图没看成：没检测到 ffmpeg');
+            results[idx] = { url, kind: 'gif', skipped: 'no-ffmpeg' };
+            return;
+          }
+          try {
+            const out = await describeVideo(Buffer.from(img.base64, 'base64'), {
+              cfg, channels, fetchImpl, text, label: '动图',
+              frames: Math.min(3, v.frames || 3), mode: 'even', intervalSec: 1,
+            });
+            desc = out.desc; points = out.points; ms = out.ms; frames = out.frames;
+            kind = 'gif';
+          } catch (e) {
+            console.error(`[留影] ✗ 动图没看成：${e?.message ?? e}`);
+            results[idx] = { url, kind: 'gif', error: String(e?.message ?? e) };
+            return;
+          }
+        } else {
+          const out = await describeImage({
+            baseUrl: ch.baseUrl,
+            model: ch.model,
+            apiKey: ch.apiKey,
+            imageBase64: img.base64,
+            mime: img.mime,
+            hint: stripCq(text).slice(0, 120),
+            fetchImpl,
+            timeoutMs: cfg.timeoutMs,
+          });
+          desc = out.desc; points = out.points; ms = out.ms;
+        }
+      }
+
+      // 扇出：每个输出适配器各投一份，谁挂了只记谁的错
+      const item = { desc, points, url, kind, frames, key, sender, at };
+      const outputsResult = [];
+      for (const o of outputs) {
+        try {
+          const ad = await resolveAdapter(o);
+          if (!ad) { outputsResult.push({ type: o.type, ok: false, error: '未知适配器' }); continue; }
+          outputsResult.push({ type: o.type, ...(await ad.deliver(item, o, { fetchImpl })) });
+        } catch (e) {
+          outputsResult.push({ type: o.type, ok: false, error: String(e?.message ?? e) });
+        }
+      }
+
+      store.record({ hash, url, chatKey: key, model: ch.model, desc, outputs: outputsResult, createdAt: at, ms, kind });
+
+      results[idx] = { url, kind, desc, points, ms, model: ch.model, ...(kind === 'video' || kind === 'gif' ? { frames } : {}), outputs: outputsResult };
+      const what = kind === 'video' ? `看了一段视频（${frames} 帧）` : kind === 'gif' ? `看了一张动图（${frames} 帧）` : '看了一张图';
+      console.error(`[留影] ✓ ${what}：${desc.slice(0, 40)}（${ch.model} → ${outputsResult.map((x) => x.type).join('/')}）`);
+    });
+
+    const remembered = results.filter((r) => r && r.desc).length;
+    return { ok: true, remembered, results };
+  } catch (e) {
+    // 永不影响消息主流程；错误留日志，媒体没看成就没看成
+    console.error(`[留影] ✗ ${e?.message ?? e}`);
+    return { ok: false, error: String(e?.message ?? e) };
+  }
+}
