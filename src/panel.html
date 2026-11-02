@@ -515,8 +515,10 @@ function renderCheck(cfg, r, outs) {
   // 1. 视觉模型通道
   const chs = (cfg.channels?.length ? cfg.channels : (cfg.baseUrl ? [cfg] : []));
   const hasKey = !!cfg.apiKeySet || chs.some((c) => c.apiKeySet);
+  const needsKey = chs.some((c) => /bigmodel|openai\.com|dashscope|siliconflow|openrouter|deepseek|moonshot/i.test(c.baseUrl || ''));
+  const keyNote = hasKey ? '已配 key' : (needsKey ? '没配 key —— 这个接口要鉴权，试看会失败' : '免密');
   items.push(chs.length
-    ? { s: 'ok', k: '视觉模型', v: chs.length + ' 条通道 · ' + esc(chs.map((c) => c.model || '?').join(' / ')) + (hasKey ? ' · 已配 key' : ' · 免密') }
+    ? { s: hasKey || !needsKey ? 'ok' : 'warn', k: '视觉模型', v: chs.length + ' 条通道 · ' + esc(chs.map((c) => c.model || '?').join(' / ')) + ' · ' + keyNote }
     : { s: 'bad', k: '视觉模型', v: '还没有可用通道 —— 去「模型接入」填接口地址和模型' });
 
   // 2. 总开关
