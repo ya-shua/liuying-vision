@@ -155,6 +155,7 @@ export async function createPanelServer({
   port = 5188,
   host = '127.0.0.1',
   visionFetchImpl, // 测试注入：给「试看」用的假 fetch
+  onShutdown,      // 测试注入；不传就真的退出进程
 } = {}) {
   const configPath = join(dataDir, 'vision.json');
   const store = openEyeStore(dataDir);
@@ -167,6 +168,21 @@ export async function createPanelServer({
       if (req.method === 'GET' && p === '/') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
         return res.end(readFileSync(PANEL_HTML));
+      }
+
+      if (p === '/api/shutdown' && req.method === 'POST') {
+        // 只认本机面板自己发起的请求：别的网页不能随手把服务关掉
+        const origin = String(req.headers.origin || '');
+        if (origin && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) {
+          return json(res, 403, { ok: false, error: '只允许从本机面板发起' });
+        }
+        json(res, 200, { ok: true, bye: true });
+        setTimeout(() => {
+          try { server.close(); } catch {}
+          if (typeof onShutdown === 'function') onShutdown();
+          else process.exit(0);
+        }, 150);
+        return;
       }
 
       if (p === '/api/status' && req.method === 'GET') {

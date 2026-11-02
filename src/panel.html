@@ -47,6 +47,11 @@
     box-shadow: 0 0 12px rgba(255,212,121,.5);
   }
   .brand small { color: var(--faint); font-weight: 400; letter-spacing: .5px; font-size: 11px; }
+  .close-btn { padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
+    background: rgba(255,125,125,.07); border: 1px solid rgba(255,125,125,.3); color: var(--bad);
+    transition: background .15s, border-color .15s; }
+  .close-btn:hover { background: rgba(255,125,125,.16); border-color: rgba(255,125,125,.55); }
+  .close-btn:disabled { opacity: .45; cursor: default; }
   .grow { flex: 1; }
   .pill { padding: 3px 12px; border-radius: 999px; font-size: 12px; background: var(--glass); border: 1px solid var(--border); white-space: nowrap; }
   .pill.ok  { color: var(--ok);  border-color: rgba(110,231,160,.4); }
@@ -208,6 +213,7 @@
     <div class="brand"><span class="mark"></span>留影<small>视觉接入</small></div>
     <div class="grow"></div>
     <span class="pill" id="p-state">读取中…</span>
+    <button class="close-btn" id="p-close" title="停掉后台服务并关闭面板">关闭面板</button>
   </div>
 
   <div class="tabs">
@@ -918,6 +924,28 @@ $('rm-discover').addEventListener('click', async () => {
   setTimeout(() => (b.textContent = '自动连接'), 2500);
 });
 $('seen-refresh').addEventListener('click', loadSeen);
+
+/* 关闭面板：停掉后台服务，页面变灰 */
+$('p-close').addEventListener('click', async () => {
+  const btn = $('p-close');
+  btn.disabled = true;
+  btn.textContent = '正在关闭…';
+  try {
+    const r = await fetch('/api/shutdown', { method: 'POST' }).then((x) => x.json());
+    if (!r.ok) throw new Error(r.error || '没关成');
+    document.body.innerHTML =
+      '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;' +
+      'gap:14px;font:14px/1.7 system-ui,-apple-system,\'Segoe UI\',sans-serif;color:#9aa4b2;background:#0d1117">' +
+      '<div style="font-size:22px;color:#e8edf5;letter-spacing:1px">面板已关闭</div>' +
+      '<div>后台服务已经停了，这个标签页可以关掉。</div>' +
+      '<div style="font-size:12px;color:#5c6472">下次双击「留影面板」再开</div></div>';
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = '关闭面板';
+    toast('没关成：' + e.message, 'bad');
+  }
+});
+
 const initView = location.hash.slice(1);
 if (initView) showTab(initView);
 loadStatus();
