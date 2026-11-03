@@ -28,6 +28,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { ringRoot } from './adapters/ringmind.mjs'; // 只用它的找库逻辑（零依赖，不会拖进记忆库本体）
+
 import { runPool } from './pool.mjs';
 import { extractMedia, stripCq } from './cq.mjs';
 import { describeImage } from './describe.mjs';
@@ -46,7 +48,8 @@ const ROOT = dirname(HERE); // 项目根（src 的上一级）
 const POINTER_FILE = join(ROOT, 'data-dir.json'); // 存储位置指针（面板里改写，桥接侧同读）
 function readPointerDataDir() {
   try {
-    const j = JSON.parse(readFileSync(POINTER_FILE, 'utf8'));
+    // RING_VISION_POINTER：测试隔离用（默认读项目根指针，不受机器上真实指针干扰）
+    const j = JSON.parse(readFileSync(process.env.RING_VISION_POINTER || POINTER_FILE, 'utf8'));
     return typeof j.dataDir === 'string' && j.dataDir.trim() ? j.dataDir.trim() : null;
   } catch {
     return null;
@@ -140,6 +143,34 @@ export function defaultVisionConfig() {
 }
 
 /**
+ * 乱码防御：历史编码事故（GBK 写入 → 面板"读取→保存"循环固化）会把中文路径
+ * 变成一串 U+FFFD 替换符永久留在 vision.json 里 —— ringmind 会照着坏路径开库，
+ * 静默把记忆写进一个乱码名字的文件。这里在读取层兜底：
+ *   ringmind 的库路径/库名坏了 → 用环形的心 data-location.json（唯一事实源）修回来；
+ *   其它字段还有乱码 → 不猜，数出来交给调用方展示（面板 configIssue / 管线日志）。
+ * @returns {boolean} 是否修过东西
+ */
+export function repairMojibake(cfg) {
+  if (!JSON.stringify(cfg).includes('\uFFFD')) return false; // 快路径：全干净
+  let repaired = false;
+  for (const o of Array.isArray(cfg.outputs) ? cfg.outputs : []) {
+    if (o?.type === 'ringmind' && (String(o.dbPath ?? '').includes('\uFFFD') || String(o.name ?? '').includes('\uFFFD'))) {
+      try {
+        const root = ringRoot();
+        const loc = root && JSON.parse(readFileSync(join(root, 'data-location.json'), 'utf8'));
+        if (loc?.dbPath) {
+          o.dbPath = String(loc.dbPath).replace(/\\/g, '/');
+          o.name = o.dbPath.split('/').pop().replace(/\.db$/i, '') || '记忆库';
+          repaired = true;
+        }
+      } catch { /* 修不了就留着 —— 调用方会把它亮出来 */ }
+    }
+  }
+  if (repaired) console.error('[留影] 检测到配置里 ringmind 库路径乱码，已按 data-location.json 自动修复');
+  return repaired;
+}
+
+/**
  * 读配置：vision.json → 环境变量覆盖。
  * 文件位置：dataDir → 环境变量 RING_VISION_DATA → 项目根 data/。
  */
@@ -150,7 +181,9 @@ export function loadVisionConfig({ dataDir } = {}) {
   let fileCfg = null;
   try {
     if (existsSync(file)) {
-      const parsed = JSON.parse(readFileSync(file, 'utf8'));
+      let raw = readFileSync(file, 'utf8');
+      if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1); // 记事本/PowerShell 可能写进 BOM，直接吃掉
+      const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) fileCfg = parsed;
     }
   } catch (e) {
@@ -158,6 +191,7 @@ export function loadVisionConfig({ dataDir } = {}) {
     console.error('[留影] vision.json 读取失败，按默认配置走：', e?.message ?? e);
   }
   Object.assign(cfg, fileCfg ?? {});
+  repairMojibake(cfg); // 乱码路径自动修（只修 ringmind 库路径，不猜其它字段）
   cfg.apiKey = process.env.RING_VISION_KEY || cfg.apiKey || '';
   if (process.env.RING_VISION_MODEL) cfg.model = process.env.RING_VISION_MODEL;
   if (process.env.RING_VISION_BASE_URL) cfg.baseUrl = process.env.RING_VISION_BASE_URL;

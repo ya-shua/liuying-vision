@@ -346,9 +346,32 @@ test("loadVisionConfig：从 dataDir 读 vision.json，enabled 跟着 key 走", 
 });
 
 test("loadVisionConfig：默认目录 = 项目根 data/（面板和桥接两侧一致）", () => {
-  const cfg = loadVisionConfig();
-  const norm = cfg.dataDir.split(/[\\/]+/).join('/');
-  assert.ok(norm.endsWith('/留影/data'), '默认数据目录应在项目根 data/ 下，实际 ' + norm);
+  // 指针隔离：机器上可能真有 data-dir.json（用户迁移过存储位置），测试不能被它击中
+  const old = process.env.RING_VISION_POINTER;
+  process.env.RING_VISION_POINTER = join(tmpdir(), "rv-no-such-pointer-" + Date.now() + ".json");
+  try {
+    const cfg = loadVisionConfig();
+    const norm = cfg.dataDir.split(/[\\/]+/).join('/');
+    assert.ok(norm.endsWith('/留影/data'), '默认数据目录应在项目根 data/ 下，实际 ' + norm);
+  } finally {
+    if (old === undefined) delete process.env.RING_VISION_POINTER;
+    else process.env.RING_VISION_POINTER = old;
+  }
+});
+
+test("loadVisionConfig：存储位置指针存在 → 指针优先于项目根 data/", () => {
+  const target = mkdtempSync(join(tmpdir(), "rv-pointer-target-"));
+  const pointer = join(mkdtempSync(join(tmpdir(), "rv-pointer-alt-")), "pointer.json");
+  writeFileSync(pointer, JSON.stringify({ dataDir: target }));
+  const old = process.env.RING_VISION_POINTER;
+  process.env.RING_VISION_POINTER = pointer;
+  try {
+    const cfg = loadVisionConfig();
+    assert.equal(cfg.dataDir, target, "指针指向的目录要被采用");
+  } finally {
+    if (old === undefined) delete process.env.RING_VISION_POINTER;
+    else process.env.RING_VISION_POINTER = old;
+  }
 });
 
 test("defaultVisionConfig：outputs 默认为空", () => {

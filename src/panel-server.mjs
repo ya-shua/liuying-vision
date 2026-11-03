@@ -15,7 +15,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openEyeStore } from './store.mjs';
-import { fetchImage, describeVideo, isVideoUrl } from './ring-vision.mjs';
+import { fetchImage, describeVideo, isVideoUrl, repairMojibake } from './ring-vision.mjs';
 import { describeImage } from './describe.mjs';
 import { ffmpegAvailable } from './video.mjs';
 import { MODELS, ASR_MODELS } from './models.mjs';
@@ -93,7 +93,15 @@ function readConfigFile(configPath) {
       let raw = readFileSync(configPath, 'utf8');
       if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1); // 记事本/PowerShell 可能写进 BOM，直接吃掉
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) Object.assign(cfg, parsed);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        Object.assign(cfg, parsed);
+        // 乱码防御：ringmind 库路径被历史编码事故固化成 U+FFFD → 自动修回来，
+        // 面板横幅说一声（不修的话 ringmind 会照坏路径开库，记忆悄悄写错地方）
+        if (repairMojibake(cfg)) {
+          try { saveConfigFile(configPath, cfg); } catch { /* 修好的值先在内存里生效，写不回去下次再修 */ }
+          configIssue = { error: '配置里的 ringmind 库路径有乱码，已按环形的心 data-location.json 自动修复 —— 建议到输出去向页核对后重新保存一次', mojibake: true };
+        }
+      }
     }
   } catch (e) {
     // 不能静默变默认 —— 备份坏文件、把原因带回面板，否则用户只会看到"配置全没了"
@@ -314,7 +322,7 @@ export async function createPanelServer({
         if (!next.apiKey || next.apiKey.includes('••')) next.apiKey = cur.apiKey;
         next.dailyCap = Math.max(1, Number(next.dailyCap) || 40);
         next.perMessage = Math.max(1, Number(next.perMessage) || 2);
-        next.enabled = next.enabled !== false && !!next.apiKey;
+        next.enabled = next.enabled !== false; // 开关独立：key 选填（免密接口留空也能开），缺 key 时自检卡会黄牌提醒
         next.outputs = Array.isArray(next.outputs) ? next.outputs : [];
         if (next.video && typeof next.video === 'object') {
           const v = next.video;

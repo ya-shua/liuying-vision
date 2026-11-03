@@ -176,3 +176,66 @@ test("面板：ffmpeg 路径改了能存住", async () => {
   assert.equal(cfg.config.video.ffmpegPath, "C:/custom/ff.exe", "ffmpeg 路径要持久");
   await s.close();
 });
+
+/** 造一个假的"环形的心"项目根（data-location.json 是库路径的唯一事实源），RING_ROOT 指过去 */
+async function fakeRingRoot() {
+  const { mkdirSync } = await import("node:fs");
+  const root = mkdtempSync(join(tmpdir(), "rv-ring-root-"));
+  mkdirSync(join(root, "src"), { recursive: true });
+  writeFileSync(join(root, "src", "index.js"), "export class Ringmind {}");
+  mkdirSync(join(root, "data"), { recursive: true });
+  const dbPath = join(root, "data", "memory.db").replace(/\\/g, "/");
+  writeFileSync(join(root, "data-location.json"), JSON.stringify({ dbPath }));
+  return { root, dbPath };
+}
+
+test("乱码防御：ringmind 库路径固化成 U+FFFD → 按 data-location.json 自动修复", async () => {
+  const { repairMojibake } = await import("../src/ring-vision.mjs");
+  const { root, dbPath } = await fakeRingRoot();
+  const oldRoot = process.env.RING_ROOT;
+  process.env.RING_ROOT = root;
+  try {
+    const cfg = { outputs: [{ type: "ringmind", enabled: true, dbPath: "D:/\uFFFD\uFFFD\uFFFD/\uFFFD\uFFFD\uFFFD.db", name: "\uFFFD\uFFFD\uFFFD" }] };
+    assert.equal(repairMojibake(cfg), true, "修过要返回 true");
+    assert.equal(cfg.outputs[0].dbPath, dbPath, "库路径修回唯一事实源");
+    assert.equal(cfg.outputs[0].name, "memory", "库名取库文件名");
+    // 干净配置不动手
+    assert.equal(repairMojibake({ outputs: [{ type: "ringmind", dbPath, name: "测试记忆库" }] }), false);
+    // 管线侧读取同样免疫：loadVisionConfig 拿到坏文件也能修
+    const dataDir = mkdtempSync(join(tmpdir(), "rv-mojibake-"));
+    writeFileSync(join(dataDir, "vision.json"), JSON.stringify({
+      outputs: [{ type: "ringmind", enabled: true, dbPath: "\uFFFD:/\uFFFD\uFFFD.db", name: "\uFFFD" }],
+    }));
+    const { loadVisionConfig } = await import("../src/ring-vision.mjs");
+    const loaded = loadVisionConfig({ dataDir });
+    assert.equal(loaded.outputs[0].dbPath, dbPath, "管线读到的库路径是修好的");
+  } finally {
+    if (oldRoot === undefined) delete process.env.RING_ROOT;
+    else process.env.RING_ROOT = oldRoot;
+  }
+});
+
+test("面板：读到乱码库路径 → 修复落盘 + 横幅提示，下次读消失", async () => {
+  const { root, dbPath } = await fakeRingRoot();
+  const oldRoot = process.env.RING_ROOT;
+  process.env.RING_ROOT = root;
+  try {
+    const dataDir = mkdtempSync(join(tmpdir(), "rv-mojibake-panel-"));
+    writeFileSync(join(dataDir, "vision.json"), JSON.stringify({
+      enabled: true,
+      outputs: [{ type: "ringmind", enabled: true, dbPath: "\uFFFD:/\uFFFD\uFFFD\uFFFD/\uFFFD\uFFFD\uFFFD.db", name: "\uFFFD\uFFFD\uFFFD\uFFFD" }],
+    }));
+    const s = await createPanelServer({ dataDir, port: 0 });
+    const st = await j(await fetch(s.url + "/api/status"));
+    assert.match(st.configIssue?.error ?? "", /乱码.*自动修复/s, "横幅要说一声");
+    const file = JSON.parse(readFileSync(join(dataDir, "vision.json"), "utf8"));
+    assert.equal(file.outputs[0].dbPath, dbPath, "落盘的坏路径要被修回来");
+    // 第二次读：文件已经干净，横幅自动消失
+    const st2 = await j(await fetch(s.url + "/api/status"));
+    assert.equal(st2.configIssue, null);
+    await s.close();
+  } finally {
+    if (oldRoot === undefined) delete process.env.RING_ROOT;
+    else process.env.RING_ROOT = oldRoot;
+  }
+});
