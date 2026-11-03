@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -121,5 +121,58 @@ test("面板：没配 key 也能试看（免密接口，key 是选填的）", as
   );
   assert.equal(r.ok, true, "key 选填：免密接口直接用");
   assert.equal(r.desc, "测试图：一只橘猫");
+  await s.close();
+});
+
+test("存储位置：迁移配置和账本到新目录，面板立即可用", async () => {
+  const A = mkdtempSync(join(tmpdir(), "rv-dd-a-"));
+  const B = mkdtempSync(join(tmpdir(), "rv-dd-b-"));
+  const pointer = join(A, "data-dir.json");
+  const { createPanelServer } = await import("../src/panel-server.mjs");
+  const { openEyeStore } = await import("../src/store.mjs");
+  const s = await createPanelServer({ dataDir: A, pointerPath: pointer, port: 0 });
+  // 旧目录里造一条审计记录 + 一份配置
+  openEyeStore(A).record({ hash: "h1", url: "https://a/1.jpg", desc: "迁移前的记录", outputs: [], createdAt: 1 });
+  writeFileSync(join(A, "vision.json"), JSON.stringify({ enabled: true, model: "keep-me" }));
+
+  const r = await j(await fetch(s.url + "/api/data-dir", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ dir: B }),
+  }));
+  assert.equal(r.ok, true);
+  assert.equal(existsSync(join(B, "eye.db")), true, "账本跟过去");
+  assert.equal(existsSync(join(B, "vision.json")), true, "配置跟过去");
+  assert.equal(existsSync(pointer), true, "指针写下了");
+  // 切换后新目录可读:审计记录还在
+  const seen = await j(await fetch(s.url + "/api/seen?limit=10"));
+  assert.equal(seen.rows.length, 1);
+  assert.equal(seen.rows[0].desc, "迁移前的记录");
+  await s.close();
+});
+
+test("存储位置：目标已有 eye.db → 拒绝，防覆盖", async () => {
+  const A = mkdtempSync(join(tmpdir(), "rv-dd-c-"));
+  const B = mkdtempSync(join(tmpdir(), "rv-dd-d-"));
+  const pointer = join(A, "data-dir.json");
+  const { createPanelServer } = await import("../src/panel-server.mjs");
+  const s = await createPanelServer({ dataDir: A, pointerPath: pointer, port: 0 });
+  writeFileSync(join(B, "eye.db"), "not-a-db");
+  const r = await j(await fetch(s.url + "/api/data-dir", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ dir: B }),
+  }));
+  assert.equal(r.ok, false);
+  assert.match(r.error, /eye.db/);
+  await s.close();
+});
+
+test("面板：ffmpeg 路径改了能存住", async () => {
+  const { s } = await boot();
+  await j(await fetch(s.url + "/api/config", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ video: { ffmpegPath: "C:/custom/ff.exe" } }),
+  }));
+  const cfg = await j(await fetch(s.url + "/api/config"));
+  assert.equal(cfg.config.video.ffmpegPath, "C:/custom/ff.exe", "ffmpeg 路径要持久");
   await s.close();
 });

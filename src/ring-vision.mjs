@@ -35,6 +35,7 @@ import { extractFrames, ffmpegAvailable } from './video.mjs';
 import { extractAudio, transcribeAudio } from './audio.mjs';
 import { openEyeStore } from './store.mjs';
 import * as ringmind from './adapters/ringmind.mjs';
+import * as mcpring from './adapters/mcp-ring.mjs';
 import * as sqlite from './adapters/sqlite.mjs';
 import * as jsonl from './adapters/jsonl.mjs';
 import * as markdown from './adapters/markdown.mjs';
@@ -42,7 +43,17 @@ import * as webhook from './adapters/webhook.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = dirname(HERE); // 项目根（src 的上一级）
-const ADAPTERS = { ringmind, sqlite, jsonl, markdown, webhook };
+const POINTER_FILE = join(ROOT, 'data-dir.json'); // 存储位置指针（面板里改写，桥接侧同读）
+function readPointerDataDir() {
+  try {
+    const j = JSON.parse(readFileSync(POINTER_FILE, 'utf8'));
+    return typeof j.dataDir === 'string' && j.dataDir.trim() ? j.dataDir.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+const ADAPTERS = { ringmind, sqlite, jsonl, markdown, webhook, 'mcp-ring': mcpring };
 const customCache = new Map(); // file → 模块
 
 const urlHash = (url) => createHash('sha256').update(String(url)).digest('hex').slice(0, 24);
@@ -112,7 +123,7 @@ export function defaultVisionConfig() {
     video: {                                           // 视频设置（全部用户可配）
       enabled: true,                                   // 视频开关（关 = 只看图）
       frames: 3,                                       // 抽几帧
-      mode: 'interval',                                // interval=按间隔秒 | even=按时长均匀 | scene=按镜头切换
+      mode: 'even',                                // interval=按间隔秒 | even=按时长均匀 | scene=按镜头切换
       intervalSec: 5,                                  // interval 模式的间隔秒
       maxBytes: 64 * 1024 * 1024,                      // 视频太大不看（64MB）
       ffmpegPath: 'ffmpeg',                            // ffmpeg 可执行文件路径
@@ -134,7 +145,7 @@ export function defaultVisionConfig() {
  */
 export function loadVisionConfig({ dataDir } = {}) {
   const cfg = defaultVisionConfig();
-  const dir = dataDir || process.env.RING_VISION_DATA || join(ROOT, 'data'); // 和面板默认一致：项目根 data/
+  const dir = dataDir || process.env.RING_VISION_DATA || readPointerDataDir() || join(ROOT, 'data'); // 指针优先于默认 // 和面板默认一致：项目根 data/
   const file = join(dir, 'vision.json');
   let fileCfg = null;
   try {
@@ -160,34 +171,29 @@ export function loadVisionConfig({ dataDir } = {}) {
 
 /** 看一段视频/动图：抽帧 → 逐帧描述 → 合并成一条（调用方保证 ffmpeg 可用）
  *  audio=true 时再抽音轨转文字（视频；动图没声音不抽） */
-export async function describeVideo(videoBuffer, { cfg, channels, fetchImpl, text, label = '视频', frames, mode, intervalSec, audio = false, spawnImpl } = {}) {
+export async function describeVideo(videoBuffer, { cfg, channel, fetchImpl, text, label = '视频', frames, mode, intervalSec, audio = false, spawnImpl } = {}) {
   const v = cfg.video ?? {};
   const ex = await extractFrames({
     buffer: videoBuffer, ffmpegPath: v.ffmpegPath || 'ffmpeg',
     frames: frames ?? v.frames, mode: mode ?? v.mode, intervalSec: intervalSec ?? v.intervalSec,
     tmpDir: join(cfg.dataDir, 'tmp'), timeoutMs: Math.max(cfg.timeoutMs, 120000), spawnImpl,
   });
-  const chs = channels?.length ? channels : buildChannels(cfg);
-  // 帧级并发:各帧分给各通道,一段视频的 N 帧 ≈ 一帧的耗时
-  const frameOut = await runPool(ex.frames, Math.min(chs.length, 4), async (f, wi) => {
-    const ch = chs[wi % chs.length];
-    return describeImage({
-      baseUrl: ch.baseUrl,
-      model: ch.model,
-      apiKey: ch.apiKey,
+  // 理解连续性:一个视频的所有帧都走同一个通道(同一个模型),前后描述口径一致;
+  // 多模型加速发生在视频层面 —— 多条视频排队时,由通道池分给不同模型并行。
+  const descs = [];
+  const pts = [];
+  let ms = 0;
+  for (const f of ex.frames) {
+    const out = await describeImage({
+      baseUrl: channel.baseUrl,
+      model: channel.model,
+      apiKey: channel.apiKey,
       imageBase64: f.base64,
       mime: f.mime,
       hint: `这是一段${label}的第 ${f.frame} 帧。` + stripCq(text).slice(0, 100),
       fetchImpl,
       timeoutMs: cfg.timeoutMs,
     });
-  });
-  const descs = [];
-  const pts = [];
-  let ms = 0;
-  for (const r of frameOut) {
-    if (!r.ok) { console.error(`[留影] ✗ 一帧没看出（不影响其它帧）：${r.error?.message ?? r.error}`); continue; }
-    const out = r.value;
     ms += out.ms || 0;
     if (out.desc) descs.push(out.desc);
     for (const p of out.points) if (!pts.includes(p)) pts.push(p);
@@ -300,7 +306,7 @@ export async function visionNote(input, opts = {}) {
           } finally {
             clearTimeout(timer);
           }
-          const out = await describeVideo(buf, { cfg, channels, fetchImpl, text, audio: true, spawnImpl: opts.spawnImpl });
+          const out = await describeVideo(buf, { cfg, channel: ch, fetchImpl, text, audio: true, spawnImpl: opts.spawnImpl });
           desc = out.desc; points = out.points; ms = out.ms; frames = out.frames;
         } catch (e) {
           console.error(`[留影] ✗ 视频没看成：${e?.message ?? e}`);

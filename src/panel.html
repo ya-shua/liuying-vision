@@ -309,7 +309,7 @@
       <div class="card-title">照片 · 大小与读取</div>
       <div class="card-desc">图片的读取限制。试看入口在「功能」页。</div>
       <div class="form">
-        <label>大小上限 MB</label><input type="text" id="p-maxmb" placeholder="8">
+        <label>大小上限 MB</label><input type="text" id="p-maxmb" placeholder="默认 8">
       </div>
     </div>
     </div>
@@ -335,16 +335,31 @@
       <div class="card-desc">把视频里的人说话转成文字，拼进描述（可选；没配就是默片）。OpenAI 兼容 /audio/transcriptions —— 免费 0 成本路线：Groq 免费档（<a href="https://console.groq.com" target="_blank" style="color:var(--eye)">console.groq.com</a>，地址填 https://api.groq.com/openai/v1）或本地 whisper.cpp / faster-whisper server。前提：本机有 ffmpeg。</div>
       <div class="form">
         <label>声音转文字</label>
+        <label>快捷选择</label><select id="a-pick"></select>
         <select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
         <label>语音接口</label><input type="text" id="a-baseUrl" placeholder="https://api.groq.com/openai/v1 或本地服务地址">
         <label>语音模型</label><input type="text" id="a-model" placeholder="whisper-large-v3">
         <label>语音 key 选填</label><input type="text" id="a-apiKey" placeholder="免密服务留空">
         <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
+        <div class="full hint" id="a-hint"></div>
       </div>
     </div>
 
     </div>
     <div class="view" id="view-outputs">
+    <div class="card">
+      <div class="card-title">存储位置</div>
+      <div class="card-desc">vision.json（配置）和 eye.db（审计账本）存这里。改了会<b>自动迁移</b>过去（目标已有账本会拒绝，防覆盖）；qq-bridge 那边不用改任何东西。</div>
+      <div class="form">
+        <label>数据目录</label>
+        <div class="row" style="flex-wrap:nowrap">
+          <input type="text" id="d-dir" placeholder="D:/某目录/留影数据" style="flex:1">
+          <button class="btn gold" id="d-save">迁移并切换</button>
+        </div>
+        <div class="full hint" id="d-state">改完立即生效，不用重启。</div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">输出去向</div>
       <div class="card-desc">看图之后的描述交给谁。可多选、可叠加；某个输出挂了只记它自己的错。</div>
@@ -625,10 +640,20 @@ async function loadSeen() {
     const r = await fetch('/api/models').then((x) => x.json()).catch(() => null);
     MODELS_CACHE = r?.models ?? [];
   }
-  const chOptions = (picked) => MODELS_CACHE.map((m) => {
-    const v = m.baseUrl + '|' + m.id;
-    return `<option value="${esc(v)}"${v === picked ? ' selected' : ''}>${esc(m.label)} · ${m.free ? '免费' : '收费'} · 延迟${esc(m.latency)}</option>`;
-  }).join('') + `<option value="__custom"${picked === '__custom' ? ' selected' : ''}>自定义（手填地址和模型）</option>`;
+  const chOptions = (picked) => {
+    // 按档位分组:免费 / 性价比 / 高性能(★ = 同档佼佼者);模型名前带厂商名
+    const tiers = ['免费', '性价比', '高性能'];
+    let groups = '';
+    for (const t of tiers) {
+      const ms = MODELS_CACHE.filter((m) => (m.tier || '免费') === t);
+      if (!ms.length) continue;
+      const gLabel = t === '免费' ? '免费' : t + '（★ = 同档佼佼者）';
+      groups += '<optgroup label="' + esc(gLabel) + '">' + ms.map((m) =>
+        `<option value="${esc(m.baseUrl + '|' + m.id)}"${(m.baseUrl + '|' + m.id) === picked ? ' selected' : ''}>[${esc(m.tier)}] ${esc(m.vendor)} · ${esc(m.label)} · 延迟${esc(m.latency)}${m.pick ? ' ★' : ''}</option>`
+      ).join('') + '</optgroup>';
+    }
+    return groups + `<option value="__custom"${picked === '__custom' ? ' selected' : ''}>自定义（手填地址和模型）</option>`;
+  };
 
   function chHint(m) {
     return m ? `${esc(m.note)}｜key 申请：<a href="${esc(m.keyUrl)}" target="_blank" style="color:var(--eye)">${esc(m.keyUrl)}</a>` : '自定义：手填下面的接口地址和模型名（任何 OpenAI 兼容视觉接口）。';
@@ -735,6 +760,34 @@ async function discoverRing() {
   return false;
 }
 
+  let ASR_CACHE = [];
+  async function ensureAsrCatalog() {
+    if (ASR_CACHE.length) return;
+    const r = await fetch('/api/models').then((x) => x.json()).catch(() => null);
+    ASR_CACHE = r?.asr ?? [];
+  }
+  function syncAsrPick(cfg) {
+    const pick = $('a-pick');
+    if (!pick.options.length) {
+      pick.innerHTML = ASR_CACHE.map((m) =>
+        `<option value="${esc(m.baseUrl + '|' + m.id)}">${esc(m.vendor)} · ${esc(m.label)} · ${m.free ? '免费' : '收费'} · 延迟${esc(m.latency)}</option>`
+      ).join('') + '<option value="__custom">自定义（手填地址和模型）</option>';
+      pick.addEventListener('change', () => {
+        const v = pick.value;
+        if (v === '__custom') { $('a-hint').textContent = '手填语音接口和模型名。'; return; }
+        const m = ASR_CACHE.find((x) => x.baseUrl + '|' + x.id === v);
+        if (!m) return;
+        $('a-baseUrl').value = m.baseUrl;
+        $('a-model').value = m.id;
+        $('a-hint').innerHTML = chHint(m);
+      });
+    }
+    const cur = (cfg.asr?.baseUrl || '') + '|' + (cfg.asr?.model || '');
+    for (const o of pick.options) o.selected = o.value === cur;
+    const hit = ASR_CACHE.find((m) => m.baseUrl + '|' + m.id === cur);
+    $('a-hint').innerHTML = hit ? chHint(hit) : '自定义：手填语音接口和模型名。';
+  }
+
 function fillConfig(cfg) {
   $('c-enabled').value = cfg.enabled ? 'true' : 'false';
   renderChannels(cfg);
@@ -779,6 +832,8 @@ function fillConfig(cfg) {
   $('a-apiKey').value = '';
   $('a-apiKey').placeholder = (cfg.asr?.apiKeySet || cfg.asr?.apiKey) ? '已配置，留空 = 不改' : '免密服务留空';
   $('a-maxsec').value = cfg.asr?.maxSeconds ?? 120;
+  if ($('d-dir') && document.activeElement !== $('d-dir')) $('d-dir').value = cfg.dataDir || '';
+  syncAsrPick(cfg);
 }
 
 const KNOWN_OUT = ['ringmind', 'sqlite', 'jsonl', 'markdown', 'webhook', 'custom'];
@@ -922,6 +977,17 @@ $('rm-discover').addEventListener('click', async () => {
   const b = $('rm-discover');
   b.textContent = ok ? '✓ 已自动填入' : '没找到';
   setTimeout(() => (b.textContent = '自动连接'), 2500);
+});
+$('d-save').addEventListener('click', async () => {
+  const dir = $('d-dir').value.trim();
+  const el = $('d-state');
+  if (!dir) { el.textContent = '先填目录'; el.className = 'hint err'; return; }
+  const r = await fetch('/api/data-dir', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ dir }),
+  }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
+  if (r.ok) { el.textContent = '✓ 已迁移到 ' + r.dataDir; el.className = 'hint ok-text'; }
+  else { el.textContent = r.error; el.className = 'hint err'; }
 });
 $('seen-refresh').addEventListener('click', loadSeen);
 

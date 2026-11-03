@@ -10,7 +10,7 @@
  */
 
 import http from 'node:http';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,11 +18,22 @@ import { openEyeStore } from './store.mjs';
 import { fetchImage, describeVideo, isVideoUrl } from './ring-vision.mjs';
 import { describeImage } from './describe.mjs';
 import { ffmpegAvailable } from './video.mjs';
-import { MODELS } from './models.mjs';
+import { MODELS, ASR_MODELS } from './models.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = dirname(HERE);
 const PANEL_HTML = join(HERE, 'panel.html');
+const POINTER_FILE = join(ROOT, 'data-dir.json');
+
+/** 读数据目录指针;没有/坏了 → null(用默认) */
+function readPointerDataDir() {
+  try {
+    const j = JSON.parse(readFileSync(POINTER_FILE, 'utf8'));
+    return typeof j.dataDir === 'string' && j.dataDir.trim() ? j.dataDir.trim() : null;
+  } catch {
+    return null;
+  }
+}
 
 const json = (res, code, obj) => {
   res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
@@ -59,10 +70,18 @@ function readConfigFile(configPath) {
     timeoutMs: 45000,
     outputs: [],
     channels: [],
+    asr: {
+      enabled: false,
+      baseUrl: 'https://api.groq.com/openai/v1',
+      model: 'whisper-large-v3',
+      apiKey: '',
+      maxSeconds: 120,
+      language: '',
+    },
     video: {
       enabled: true,
       frames: 3,
-      mode: 'interval',
+      mode: 'even',
       intervalSec: 5,
       maxBytes: 64 * 1024 * 1024,
       ffmpegPath: 'ffmpeg',
@@ -151,14 +170,17 @@ function masked(cfg) {
  * 起面板服务。dataDir 是 vision.json + eye.db 的家；目录不存在会自动建。
  */
 export async function createPanelServer({
-  dataDir = process.env.RING_VISION_DATA || join(ROOT, 'data'),
+  dataDir,
+  pointerPath = POINTER_FILE,
   port = 5188,
   host = '127.0.0.1',
   visionFetchImpl, // 测试注入：给「试看」用的假 fetch
   onShutdown,      // 测试注入；不传就真的退出进程
 } = {}) {
-  const configPath = join(dataDir, 'vision.json');
-  const store = openEyeStore(dataDir);
+  // 解析顺序:调用方显式 > 环境变量 > 指针文件(面板里改过存储位置) > 项目根 data/
+  dataDir = dataDir || process.env.RING_VISION_DATA || readPointerDataDir() || join(ROOT, 'data');
+  let configPath = join(dataDir, 'vision.json');
+  let store = openEyeStore(dataDir);
 
   const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x');
@@ -207,8 +229,33 @@ export async function createPanelServer({
         return json(res, 200, discoverRingLibrary());
       }
 
+      if (p === '/api/data-dir' && req.method === 'GET') {
+        return json(res, 200, { ok: true, dataDir, pointerPath });
+      }
+
+      if (p === '/api/data-dir' && req.method === 'POST') {
+        const body = await readBody(req);
+        const dir = String(body.dir || '').trim().replace(/\\/g, '/');
+        const norm = (x) => String(x).replace(/\\/g, '/').replace(/\/+$/, '');
+        if (!/^([a-zA-Z]:)?\//.test(dir)) return json(res, 400, { ok: false, error: '要一个绝对路径（如 D:/留影数据）' });
+        if (norm(dir) === norm(dataDir)) return json(res, 400, { ok: false, error: '已经是这个目录了' });
+        mkdirSync(dir, { recursive: true });
+        if (existsSync(join(dir, 'eye.db'))) return json(res, 400, { ok: false, error: '目标目录已有 eye.db —— 先清空或换目录' });
+        // 迁移:vision.json + eye.db 全家（db/wal/shm 一起搬，账本不丢）
+        const moved = [];
+        for (const f of ['vision.json', 'eye.db', 'eye.db-wal', 'eye.db-shm']) {
+          const src = join(dataDir, f);
+          if (existsSync(src)) { copyFileSync(src, join(dir, f)); moved.push(f); }
+        }
+        writeFileSync(pointerPath, JSON.stringify({ dataDir: dir, movedAt: Date.now() }, null, 2) + '\n');
+        dataDir = dir;
+        configPath = join(dataDir, 'vision.json');
+        store = openEyeStore(dataDir);
+        return json(res, 200, { ok: true, dataDir: dir, moved });
+      }
+
       if (p === '/api/models' && req.method === 'GET') {
-        return json(res, 200, { ok: true, models: MODELS });
+        return json(res, 200, { ok: true, models: MODELS, asr: ASR_MODELS });
       }
 
       if (p === '/api/seen' && req.method === 'GET') {
@@ -260,7 +307,7 @@ export async function createPanelServer({
         const body = await readBody(req);
         const cur = readConfigFile(configPath);
         const next = { ...cur };
-        for (const k of ['enabled', 'baseUrl', 'model', 'apiKey', 'dailyCap', 'perMessage', 'maxBytes', 'timeoutMs', 'outputs', 'video', 'channels']) {
+        for (const k of ['enabled', 'baseUrl', 'model', 'apiKey', 'dailyCap', 'perMessage', 'maxBytes', 'timeoutMs', 'outputs', 'video', 'channels', 'asr']) {
           if (k in body) next[k] = body[k];
         }
         // key 打码保护：面板传空/传打码串 = 不改
