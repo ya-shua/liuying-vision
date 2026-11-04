@@ -205,6 +205,17 @@
   .out-fields { display: grid; grid-template-columns: 90px 1fr; gap: 7px 10px; align-items: center; }
   .out-fields input, .out-fields select { font-size: 12px; padding: 5px 9px; }
   .out-fields label { font-size: 11.5px; }
+
+  /* 新手接入清单（功能页顶上） */
+  .setup-step { border-top: 1px solid var(--border-soft); padding: 12px 0 4px; margin-top: 10px; display: grid; gap: 8px; }
+  .setup-step:first-of-type { border-top: 0; margin-top: 4px; }
+  .s-head { display: flex; align-items: center; gap: 9px; }
+  .s-head b { font-size: 13.5px; }
+  .s-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+           font-size: 12px; background: #3a4150; color: #9aa3ad; flex: 0 0 auto; }
+  .s-dot.ok { background: #2e9e44; color: #fff; }
+  .subview { display: none; }
+  .subview.on { display: block; }
 </style>
 </head>
 <body>
@@ -219,34 +230,50 @@
   <div class="tabs">
     <div class="tab on" data-view="func">功能</div>
     <div class="tab" data-view="archive">留档</div>
-    <div class="tab" data-view="access">模型接入</div>
-    <div class="tab" data-view="photo">照片</div>
-    <div class="tab" data-view="video">视频</div>
-    <div class="tab" data-view="outputs">输出去向</div>
+    <div class="tab" data-view="settings">设置</div>
   </div>
 
   <!-- ══════ 功能展示 ══════ -->
   <div class="view on" id="view-func">
-    <div class="banner" id="nokey-banner" style="display:none">
-      <span class="b-text"></span>
-      <button class="b-btn" id="goto-settings">去设置接入</button>
-    </div>
-
     <div class="banner" id="config-banner" style="display:none">
       <span class="b-text"></span>
     </div>
 
+    <div class="card" id="setup-card">
+      <div class="card-title">开始使用 · 两步接好</div>
+      <div class="card-desc">接好之后：QQ 里发的图片和视频会被自动看一眼，描述交给你选的地方。下面第 ③ 步当场验证。</div>
+      <div class="setup-step">
+        <div class="s-head"><span class="s-dot" id="s1-dot">1</span><b>填模型 key</b><span class="hint" id="s1-state"></span></div>
+        <div class="row">
+          <input type="text" id="su-key" placeholder="粘贴 key（默认用 GLM-4V-Flash，免费申请：open.bigmodel.cn）" style="flex:1;min-width:240px">
+          <button class="btn gold" id="su-save">保存接入</button>
+        </div>
+      </div>
+      <div class="setup-step">
+        <div class="s-head"><span class="s-dot" id="s2-dot">2</span><b>选描述的去向</b><span class="hint" id="s2-state"></span></div>
+        <div class="row">
+          <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="su-ringmind" checked> 存进记忆库（自动找库）</label>
+          <span class="hint">要别的去向（JSONL / Webhook…）去「设置 → 输出去向」</span>
+        </div>
+        <div class="row"><button class="btn gold" id="su-save-outs">保存去向</button></div>
+      </div>
+    </div>
+
+    <div class="banner" id="done-banner" style="display:none">
+      <span class="b-text">✓ 已接好 —— 消息里的图和视频会被自动看一眼。想调细节去「设置」页。</span>
+    </div>
+
     <div class="metrics" id="metrics"></div>
 
-    <div class="card">
+    <div class="card" id="check-card">
       <div class="card-title">自检</div>
       <div class="card-desc">一眼看出哪条链路是通的 —— 不用等真的出错才发现。</div>
       <div class="check-list" id="check-list"></div>
     </div>
 
     <div class="card">
-      <div class="card-title">试看一张图</div>
-      <div class="card-desc">粘一个图链，当场让眼睛看一眼。只描述，不进任何输出、不占日限 —— 用来试 key 通不通。</div>
+      <div class="card-title" id="test-title">③ 试一张图 —— 接好后在这里验证</div>
+      <div class="card-desc">粘一个图链，当场让眼睛看一眼。只描述：不进输出去向、不进账本、不留档 —— 纯验证。</div>
       <div class="row">
         <input type="text" id="test-url" placeholder="https://…jpg" style="flex:1;min-width:240px">
         <button class="btn primary" id="test-go">看一眼</button>
@@ -261,10 +288,23 @@
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="card">
-      <div class="card-title">最近看过的图</div>
-      <div class="card-desc">记在眼睛自己的 eye.db 里 —— 输出适配器随便换，这本账不丢。</div>
+  <!-- ══════ 留档 ══════ -->
+    <div class="view" id="view-archive">
+    <div class="hint" style="margin:0 0 14px">这里翻「历史」：<b>图片 / 视频</b> = 留档的原件 + 分析（存在 <span id="arch-root"></span>，超额自动删最旧，上限在「设置」页改）；<b>全部记录</b> = eye.db 的全量流水账，换输出去向也不丢。</div>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn primary" id="arch-kind-images">图片</button>
+      <button class="btn" id="arch-kind-videos">视频</button>
+      <button class="btn" id="arch-kind-ledger">全部记录</button>
+      <button class="btn" id="arch-refresh">刷新</button>
+      <span class="count" id="arch-count"></span>
+    </div>
+    <div id="arch-media">
+      <div id="arch-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px"></div>
+      <div class="hint" id="arch-empty" style="display:none">还没有留档 —— 等真的看过图/视频后，这里就会出现它们的原件和分析。</div>
+    </div>
+    <div id="arch-ledger" style="display:none">
       <div class="row" style="margin-bottom:10px">
         <button class="btn" id="seen-refresh">刷新</button>
         <span class="count" id="seen-count"></span>
@@ -276,21 +316,15 @@
     </div>
   </div>
 
-  <!-- ══════ 留档 ══════ -->
-    <div class="view" id="view-archive">
-    <div class="hint" style="margin:0 0 14px">留档 = 看过的「原件 + 分析」，存在 <span id="arch-root"></span>，超额自动删最旧（图片上限在「照片」页、视频上限在「视频」页改，0 = 不留）。这里的账不管输出 —— 换输出去向不影响留档。</div>
-    <div class="row" style="margin-bottom:10px">
-      <button class="btn primary" id="arch-kind-images">图片</button>
-      <button class="btn" id="arch-kind-videos">视频</button>
-      <button class="btn" id="arch-refresh">刷新</button>
-      <span class="count" id="arch-count"></span>
-    </div>
-    <div id="arch-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px"></div>
-    <div class="hint" id="arch-empty" style="display:none">还没有留档 —— 等真的看过图/视频后，这里就会出现它们的原件和分析。</div>
-  </div>
-
   <!-- ══════ 设置 ══════ -->
-    <div class="view" id="view-access">
+  <div class="view" id="view-settings">
+    <div class="tabs subtabs" style="margin-bottom:14px">
+      <div class="tab on" data-sub="access">模型接入</div>
+      <div class="tab" data-sub="outputs">输出去向</div>
+      <div class="tab" data-sub="photo">照片</div>
+      <div class="tab" data-sub="video">视频</div>
+    </div>
+    <div class="subview on" id="sub-access">
     <div class="card key-card">
       <div class="card-title">视觉模型</div>
       <div class="card-desc">接口地址 + 模型名必填；apiKey 选填 —— 空 = 不带鉴权头，本地/免费接口直接用（参照 DeepSeek 的接法：token 空 = 不带鉴权头）。</div>
@@ -307,7 +341,8 @@
     </div>
 
     </div>
-    <div class="view" id="view-photo">
+    </div><!-- /sub-access -->
+    <div class="subview" id="sub-photo">
     <div class="card">
       <div class="card-title">节奏与开关</div>
       <div class="card-desc">整体看多少、多快。上限都按「媒体」数 —— 一张图和一段视频都算一个。</div>
@@ -328,8 +363,9 @@
       </div>
     </div>
     </div>
-    <div class="view" id="view-video">
-    <div class="hint" style="margin:0 0 14px">总开关和日限在「照片」页；下面是视频自己的参数。</div>
+    </div><!-- /sub-photo -->
+    <div class="subview" id="sub-video">
+    <div class="hint" style="margin:0 0 14px">总开关和日限在「照片」子页；下面是视频自己的参数。</div>
     <div class="card">
       <div class="card-title">视频 · 抽帧（画面）</div>
       <div class="card-desc">视频来了先抽帧、逐帧看，描述合并成一条记忆。需要本机有 ffmpeg —— <span id="v-ffmpeg-state" class="hint">探测中…</span></div>
@@ -363,7 +399,8 @@
     </div>
 
     </div>
-    <div class="view" id="view-outputs">
+    </div><!-- /sub-video -->
+    <div class="subview" id="sub-outputs">
     <div class="card">
       <div class="card-title">存储位置</div>
       <div class="card-desc">vision.json（配置）和 eye.db（审计账本）存这里。改了会<b>自动迁移</b>过去（目标已有账本会拒绝，防覆盖）；qq-bridge 那边不用改任何东西。</div>
@@ -441,7 +478,8 @@
         </div>
       </div>
     </div>
-  </div>
+  </div><!-- /sub-outputs -->
+  </div><!-- /view-settings -->
 
     <div class="savebar">
       <span class="hint" id="c-hint">设置保存在 vision.json（数据目录里）</span>
@@ -471,19 +509,31 @@ function toast(msg, kind = '') {
   toastTimer = setTimeout(() => { el.className = 'toast ' + kind; }, 2200);
 }
 
-/* 页签切换（带 #hash，刷新不丢当前页） */
+/* 页签切换（带 #hash，刷新不丢当前页；旧书签 #access/#photo/#video/#outputs 自动落进设置页对应子页） */
+let currentSub = 'access';
+function showSub(sub) {
+  currentSub = sub;
+  document.querySelectorAll('.tab[data-sub]').forEach((x) => x.classList.toggle('on', x.dataset.sub === sub));
+  document.querySelectorAll('.subview').forEach((x) => x.classList.toggle('on', x.id === 'sub-' + sub));
+}
 function showTab(view) {
+  let sub = null;
+  if (['access', 'outputs', 'photo', 'video'].includes(view)) { sub = view; view = 'settings'; }
   const t = document.querySelector('.tab[data-view="' + view + '"]');
   if (!t) return;
-  document.querySelectorAll('.tab').forEach((x) => x.classList.remove('on'));
+  document.querySelectorAll('.tab[data-view]').forEach((x) => x.classList.remove('on'));
   document.querySelectorAll('.view').forEach((x) => x.classList.remove('on'));
   t.classList.add('on');
   $('view-' + view).classList.add('on');
   if (location.hash.slice(1) !== view) history.replaceState(null, '', '#' + view);
   if (view === 'archive') loadArchive(); // 进留档页就拉一次（文件可能刚被留档流程写进去）
+  if (view === 'settings') showSub(sub || currentSub);
 }
-document.querySelectorAll('.tab').forEach((t) => {
+document.querySelectorAll('.tab[data-view]').forEach((t) => {
   t.addEventListener('click', () => showTab(t.dataset.view));
+});
+document.querySelectorAll('.tab[data-sub]').forEach((t) => {
+  t.addEventListener('click', () => showSub(t.dataset.sub));
 });
 window.addEventListener('hashchange', () => {
   const v = location.hash.slice(1);
@@ -492,22 +542,26 @@ window.addEventListener('hashchange', () => {
 function gotoTab(view) {
   showTab(view);
 }
-$('goto-settings').addEventListener('click', () => gotoTab('outputs'));
 
 /* 留档页：看过的原件 + 分析 */
 let archData = null;
 let archKind = 'images';
 function setArchKind(k) {
   archKind = k;
-  $('arch-kind-images').className = 'btn' + (k === 'images' ? ' primary' : '');
-  $('arch-kind-videos').className = 'btn' + (k === 'videos' ? ' primary' : '');
-  renderArchive();
+  ['images', 'videos', 'ledger'].forEach((x) => {
+    const b = $('arch-kind-' + x);
+    if (b) b.className = 'btn' + (k === x ? ' primary' : '');
+  });
+  $('arch-media').style.display = k === 'ledger' ? 'none' : '';
+  $('arch-ledger').style.display = k === 'ledger' ? 'block' : 'none';
+  if (k === 'ledger') loadSeen();
+  else if (archData) renderArchive();
 }
 async function loadArchive() {
   try {
     archData = await fetch('/api/archive').then((r) => r.json());
     if ($('arch-root')) $('arch-root').textContent = String(archData.root || '').replace(/\//g, '\\');
-    renderArchive();
+    if (archKind !== 'ledger') renderArchive();
   } catch { /* 拉不到就等下一次刷新 */ }
 }
 function renderArchive() {
@@ -544,7 +598,8 @@ function renderArchive() {
 }
 $('arch-kind-images').addEventListener('click', () => setArchKind('images'));
 $('arch-kind-videos').addEventListener('click', () => setArchKind('videos'));
-$('arch-refresh').addEventListener('click', loadArchive);
+$('arch-kind-ledger').addEventListener('click', () => setArchKind('ledger'));
+$('arch-refresh').addEventListener('click', () => (archKind === 'ledger' ? loadSeen() : loadArchive()));
 
 /* 状态 + 磁贴 + 引导横幅 */
 async function loadStatus() {
@@ -560,11 +615,7 @@ async function loadStatus() {
     state.textContent = !outs.length ? '没选输出去向' : '已停用';
     state.className = 'pill bad';
   }
-  // 引导横幅:没 key / 没去向,在功能页顶上提醒
-  const banner = $('nokey-banner');
-  const bText = banner.querySelector('.b-text');
-  if (!outs.length) { banner.style.display = 'flex'; bText.textContent = '还没选「输出去向」—— 描述没有地方可去，去设置里勾一个。'; }
-  else banner.style.display = 'none';
+  // 新手接入清单：没接好时功能页就是"两步 + 试看"，接好了自动换成仪表盘
 
   // 配置坏了必须说出来，不能让人以为"我的设置凭空消失了"
   const cb = $('config-banner');
@@ -600,6 +651,7 @@ async function loadStatus() {
   if (vs) vs.textContent = r.ffmpeg ? '已检测到 ffmpeg ✓' : '未检测到 ffmpeg —— 视频会自动跳过（插件自带 bin\\ffmpeg.exe、或 ffmpeg.org 下载后填完整路径）';
   fillConfig(cfg);
   renderCheck(cfg, r, outs);
+  renderSetup(cfg, r); // 放在 fillConfig 之后：currentCfg 要先就位，接入清单的"保存接入"才有地址/模型可用
 }
 
 /* 自检：把「通不通」摆出来，不用等真出错 */
@@ -672,6 +724,57 @@ function renderCheck(cfg, r, outs) {
     }
   }).catch(() => {});
 }
+
+/* 新手接入清单：两步各自打勾，全好之后功能页换成仪表盘 */
+function renderSetup(cfg, r) {
+  const chs = cfg.channels?.length ? cfg.channels : [];
+  const hasKey = !!cfg.apiKeySet || chs.some((c) => c.apiKeySet);
+  const needsKey = (chs.length ? chs : [{ baseUrl: cfg.baseUrl }]).some((c) => /bigmodel|openai\.com|dashscope|siliconflow|openrouter|deepseek|moonshot/i.test(c.baseUrl || ''));
+  const s1 = chs.length > 0 && (hasKey || !needsKey);
+  const outs = cfg.outputs ?? [];
+  const s2 = outs.length > 0;
+  const done = s1 && s2;
+  $('setup-card').style.display = done ? 'none' : 'block';
+  $('done-banner').style.display = done ? 'flex' : 'none';
+  $('metrics').style.display = done ? '' : 'none';
+  $('check-card').style.display = done ? '' : 'none';
+  const d1 = $('s1-dot');
+  d1.className = 's-dot' + (s1 ? ' ok' : '');
+  d1.textContent = s1 ? '✓' : '1';
+  $('s1-state').textContent = s1
+    ? '已接入 ' + esc(chs.map((c) => c.model || '?').join(' / ')) + (hasKey ? ' · key ✓' : ' · 免密')
+    : (chs.length ? '缺 key —— 上面粘上再点一次保存' : '还没接');
+  const d2 = $('s2-dot');
+  d2.className = 's-dot' + (s2 ? ' ok' : '');
+  d2.textContent = s2 ? '✓' : '2';
+  $('s2-state').textContent = s2 ? '去向：' + outs.map((o) => OUT_TYPES[o.type] || o.type).join(' / ') : '还没选';
+  $('test-title').textContent = done ? '试看一张图（只试不存）' : '③ 试一张图 —— 接好后在这里验证';
+}
+
+/* 接入清单的两步 */
+$('su-save').addEventListener('click', async () => {
+  const key = $('su-key').value.trim();
+  const r = await fetch('/api/config', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ channels: [{ baseUrl: currentCfg.baseUrl, model: currentCfg.model, apiKey: key }], enabled: true }),
+  }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
+  if (r.ok) { $('su-key').value = ''; loadStatus(); toast('已接入', 'ok'); }
+  else toast('没接上：' + (r.error || '?'), 'bad');
+});
+$('su-save-outs').addEventListener('click', async () => {
+  let outputs = [];
+  if ($('su-ringmind').checked) {
+    const d = await fetch('/api/discover-ring').then((x) => x.json()).catch(() => null);
+    if (d?.ok && d.dbPath) outputs = [{ type: 'ringmind', enabled: true, dbPath: d.dbPath, name: d.name ?? '' }];
+    else { toast('没找到记忆库 —— 去「设置 → 输出去向」手填库文件', 'bad'); return; }
+  }
+  const r = await fetch('/api/config', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ outputs }),
+  }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
+  if (r.ok) { loadStatus(); toast(outputs.length ? '去向已保存' : '已清空去向', 'ok'); }
+  else toast('没存成：' + (r.error || '?'), 'bad');
+});
 
 function ringName(r) {
   return { core: '圆心', ring1: '一圈', ring2: '二圈', ring3: '三圈', ring4: '闲聊圈', ring5: '模糊圈', recall: '回忆圈' }[r] || r;
