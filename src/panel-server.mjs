@@ -10,8 +10,8 @@
  */
 
 import http from 'node:http';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { join, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openEyeStore, closeEyeStore } from './store.mjs';
@@ -278,6 +278,41 @@ export async function createPanelServer({
       if (p === '/api/seen' && req.method === 'GET') {
         const limit = Math.min(200, Number(u.searchParams.get('limit')) || 50);
         return json(res, 200, { ok: true, rows: store.recent(limit) });
+      }
+
+      // 留档列表：media/ 里"能翻回去看的原件"（图=原图+同名 .json 分析；视频=帧包+analysis.json），最新的在前
+      if (p === '/api/archive' && req.method === 'GET') {
+        const mediaRoot = join(dataDir, 'media');
+        const readJson = (f) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return null; } };
+        const images = [];
+        try {
+          for (const f of readdirSync(join(mediaRoot, 'images')).filter((x) => !x.endsWith('.json')).sort().reverse()) {
+            const info = readJson(join(mediaRoot, 'images', f + '.json'));
+            if (info) images.push({ file: f, ...info });
+          }
+        } catch { /* 目录还没建 = 还没留过档 */ }
+        const videos = [];
+        try {
+          for (const b of readdirSync(join(mediaRoot, 'videos')).sort().reverse()) {
+            const info = readJson(join(mediaRoot, 'videos', b, 'analysis.json'));
+            if (!info) continue;
+            let frames = 0;
+            try { frames = readdirSync(join(mediaRoot, 'videos', b)).filter((x) => !x.endsWith('.json')).length; } catch {}
+            videos.push({ bundle: b, frameCount: frames, ...info });
+          }
+        } catch { /* 同上 */ }
+        return json(res, 200, { ok: true, images, videos, root: mediaRoot });
+      }
+
+      // 留档媒体文件：只从 media/ 里拿（防目录穿越）；面板只绑本机
+      if (p.startsWith('/media/') && req.method === 'GET') {
+        const mediaRoot = resolve(join(dataDir, 'media'));
+        const rel = decodeURIComponent(p.slice('/media/'.length)).replace(/\\/g, '/');
+        const abs = resolve(mediaRoot, rel);
+        const mime = ({ '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' })[abs.slice(abs.lastIndexOf('.')).toLowerCase()] || 'application/octet-stream';
+        if (!abs.startsWith(mediaRoot + sep) || !existsSync(abs)) return json(res, 404, { ok: false, error: '没这个文件' });
+        res.writeHead(200, { 'content-type': mime, 'cache-control': 'no-store' });
+        return res.end(readFileSync(abs));
       }
 
       if (p === '/api/test' && req.method === 'POST') {

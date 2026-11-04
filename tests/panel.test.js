@@ -244,6 +244,43 @@ test("面板：声音转文字开关能存住（asr 曾被 video 重建剥掉，
   await s.close();
 });
 
+test("留档页：列表接口 + 媒体文件接口（含中文文件名与目录穿越防护）", async () => {
+  const { mkdirSync } = await import("node:fs");
+  const { s, dataDir } = await boot({ withKey: false });
+  // 造一份图片留档 + 一份视频帧包
+  mkdirSync(join(dataDir, "media", "images"), { recursive: true });
+  writeFileSync(join(dataDir, "media", "images", "20261105-0001-aaaa.jpg"), Buffer.from("fakejpg"));
+  writeFileSync(join(dataDir, "media", "images", "20261105-0001-aaaa.jpg.json"), JSON.stringify({ desc: "一只猫", at: 1, model: "m" }));
+  mkdirSync(join(dataDir, "media", "videos", "20261105-0002-bbbb"), { recursive: true });
+  writeFileSync(join(dataDir, "media", "videos", "20261105-0002-bbbb", "帧01.jpg"), Buffer.from("f1"));
+  writeFileSync(join(dataDir, "media", "videos", "20261105-0002-bbbb", "analysis.json"), JSON.stringify({ desc: "一段视频", at: 2, model: "m" }));
+  // 没有 analysis.json 的孤儿目录不算数
+  mkdirSync(join(dataDir, "media", "videos", "orphan"), { recursive: true });
+
+  const r = await j(await fetch(s.url + "/api/archive"));
+  assert.equal(r.ok, true);
+  assert.equal(r.images.length, 1, "图片留档列出");
+  assert.equal(r.images[0].desc, "一只猫");
+  assert.equal(r.videos.length, 1, "孤儿目录不算");
+  assert.equal(r.videos[0].bundle, "20261105-0002-bbbb");
+  assert.equal(r.videos[0].frameCount, 1, "帧数统计");
+
+  // 媒体文件能取回（图片）
+  const img = await fetch(s.url + "/media/images/" + encodeURIComponent("20261105-0001-aaaa.jpg"));
+  assert.equal(img.status, 200);
+  assert.equal(img.headers.get("content-type"), "image/jpeg");
+  assert.equal(Buffer.from(await img.arrayBuffer()).toString(), "fakejpg");
+  // 中文帧文件名也能取回
+  const fr = await fetch(s.url + "/media/videos/" + encodeURIComponent("20261105-0002-bbbb") + "/" + encodeURIComponent("帧01.jpg"));
+  assert.equal(fr.status, 200, "中文文件名要能取回");
+  // 目录穿越被拒
+  const bad = await fetch(s.url + "/media/images/" + encodeURIComponent("../eye.db"));
+  assert.equal(bad.status, 404, "穿越 media/ 之外一律 404");
+  const bad2 = await fetch(s.url + "/media/" + encodeURIComponent("..\\eye.db"));
+  assert.equal(bad2.status, 404, "反斜杠穿越也一样");
+  await s.close();
+});
+
 /** 造一个假的"环形的心"项目根（data-location.json 是库路径的唯一事实源），RING_ROOT 指过去 */
 async function fakeRingRoot() {
   const { mkdirSync } = await import("node:fs");

@@ -218,6 +218,7 @@
 
   <div class="tabs">
     <div class="tab on" data-view="func">功能</div>
+    <div class="tab" data-view="archive">留档</div>
     <div class="tab" data-view="access">模型接入</div>
     <div class="tab" data-view="photo">照片</div>
     <div class="tab" data-view="video">视频</div>
@@ -273,6 +274,19 @@
         <tbody id="seen-rows"><tr><td colspan="5" class="empty">读取中…</td></tr></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- ══════ 留档 ══════ -->
+    <div class="view" id="view-archive">
+    <div class="hint" style="margin:0 0 14px">留档 = 看过的「原件 + 分析」，存在 <span id="arch-root"></span>，超额自动删最旧（图片上限在「照片」页、视频上限在「视频」页改，0 = 不留）。这里的账不管输出 —— 换输出去向不影响留档。</div>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn primary" id="arch-kind-images">图片</button>
+      <button class="btn" id="arch-kind-videos">视频</button>
+      <button class="btn" id="arch-refresh">刷新</button>
+      <span class="count" id="arch-count"></span>
+    </div>
+    <div id="arch-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px"></div>
+    <div class="hint" id="arch-empty" style="display:none">还没有留档 —— 等真的看过图/视频后，这里就会出现它们的原件和分析。</div>
   </div>
 
   <!-- ══════ 设置 ══════ -->
@@ -466,6 +480,7 @@ function showTab(view) {
   t.classList.add('on');
   $('view-' + view).classList.add('on');
   if (location.hash.slice(1) !== view) history.replaceState(null, '', '#' + view);
+  if (view === 'archive') loadArchive(); // 进留档页就拉一次（文件可能刚被留档流程写进去）
 }
 document.querySelectorAll('.tab').forEach((t) => {
   t.addEventListener('click', () => showTab(t.dataset.view));
@@ -478,6 +493,58 @@ function gotoTab(view) {
   showTab(view);
 }
 $('goto-settings').addEventListener('click', () => gotoTab('outputs'));
+
+/* 留档页：看过的原件 + 分析 */
+let archData = null;
+let archKind = 'images';
+function setArchKind(k) {
+  archKind = k;
+  $('arch-kind-images').className = 'btn' + (k === 'images' ? ' primary' : '');
+  $('arch-kind-videos').className = 'btn' + (k === 'videos' ? ' primary' : '');
+  renderArchive();
+}
+async function loadArchive() {
+  try {
+    archData = await fetch('/api/archive').then((r) => r.json());
+    if ($('arch-root')) $('arch-root').textContent = String(archData.root || '').replace(/\//g, '\\');
+    renderArchive();
+  } catch { /* 拉不到就等下一次刷新 */ }
+}
+function renderArchive() {
+  const grid = $('arch-grid');
+  if (!grid || !archData) return;
+  grid.innerHTML = '';
+  const list = archKind === 'images' ? (archData.images ?? []) : (archData.videos ?? []);
+  $('arch-empty').style.display = list.length ? 'none' : 'block';
+  $('arch-count').textContent = list.length ? `共 ${list.length} 份` : '';
+  for (const it of list) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'margin:0;padding:8px';
+    const meta = [it.at ? new Date(Number(it.at)).toLocaleString() : '', it.model ?? '', archKind === 'videos' ? (it.frameCount ?? 0) + ' 帧' : '']
+      .filter(Boolean).join(' · ');
+    if (archKind === 'images') {
+      const src = '/media/images/' + encodeURIComponent(it.file);
+      card.innerHTML = `<img src="${src}" loading="lazy" style="width:100%;height:150px;object-fit:cover;border-radius:8px;cursor:zoom-in">`
+        + `<div style="margin-top:6px;font-size:13px">${esc(it.desc ?? '')}</div>`
+        + `<div class="hint" style="margin-top:4px">${esc(meta)}</div>`;
+      card.querySelector('img').addEventListener('click', () => window.open(src, '_blank'));
+    } else {
+      const frames = [];
+      for (let i = 1; i <= (it.frameCount ?? 0); i++) {
+        frames.push('/media/videos/' + encodeURIComponent(it.bundle) + '/' + encodeURIComponent('帧' + String(i).padStart(2, '0') + '.jpg'));
+      }
+      card.innerHTML = `<div style="display:flex;gap:4px;overflow-x:auto">${frames.map((f) => `<img src="${f}" loading="lazy" style="height:110px;flex:0 0 auto;border-radius:6px;cursor:zoom-in">`).join('')}</div>`
+        + `<div style="margin-top:6px;font-size:13px">${esc(it.desc ?? '')}</div>`
+        + `<div class="hint" style="margin-top:4px">${esc(meta)}</div>`;
+      card.querySelectorAll('img').forEach((im) => im.addEventListener('click', () => window.open(im.src, '_blank')));
+    }
+    grid.appendChild(card);
+  }
+}
+$('arch-kind-images').addEventListener('click', () => setArchKind('images'));
+$('arch-kind-videos').addEventListener('click', () => setArchKind('videos'));
+$('arch-refresh').addEventListener('click', loadArchive);
 
 /* 状态 + 磁贴 + 引导横幅 */
 async function loadStatus() {
