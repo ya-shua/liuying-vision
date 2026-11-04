@@ -335,6 +335,7 @@ export async function createPanelServer({
         next.outputs = Array.isArray(next.outputs) ? next.outputs : [];
         if (next.video && typeof next.video === 'object') {
           const v = next.video;
+          const asrInVideo = v.asr && typeof v.asr === 'object' ? v.asr : null;
           next.video = {
             enabled: v.enabled !== false,
             frames: Math.max(1, Math.min(10, Number(v.frames) || 3)),
@@ -343,6 +344,8 @@ export async function createPanelServer({
             maxBytes: Math.max(1048576, Number(v.maxBytes) || 67108864),
             ffmpegPath: String(v.ffmpegPath || 'bin/ffmpeg.exe'),
           };
+          // 面板把声音转文字放在 video.asr 里发 —— 提升到顶层（正式位置），否则会被这里整体重建剥掉，开关永远存不上
+          if (asrInVideo) next.asr = asrInVideo;
         } else delete next.video;
         if (next.retain && typeof next.retain === 'object') {
           const rr = next.retain;

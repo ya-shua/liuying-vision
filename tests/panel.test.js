@@ -226,6 +226,24 @@ test("面板：留档上限能存住；scene 抽帧方式不再被保存吞掉",
   await s.close();
 });
 
+test("面板：声音转文字开关能存住（asr 曾被 video 重建剥掉，永远开不起来）", async () => {
+  const { s } = await boot({ withKey: false });
+  const r = await j(await fetch(s.url + "/api/config", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      video: { asr: { enabled: true, baseUrl: "https://api.groq.com/openai/v1", model: "whisper-large-v3", apiKey: "" } },
+    }),
+  }));
+  assert.equal(r.ok, true);
+  assert.equal(r.config.asr.enabled, true, "开关要能存住");
+  assert.equal(r.config.asr.baseUrl, "https://api.groq.com/openai/v1");
+  assert.equal(r.config.asr.model, "whisper-large-v3");
+  // 刷新（重新读盘）还在
+  const g = await j(await fetch(s.url + "/api/status"));
+  assert.equal(g.config.asr.enabled, true, "刷新后不回弹");
+  await s.close();
+});
+
 /** 造一个假的"环形的心"项目根（data-location.json 是库路径的唯一事实源），RING_ROOT 指过去 */
 async function fakeRingRoot() {
   const { mkdirSync } = await import("node:fs");
