@@ -177,6 +177,39 @@ test("面板：ffmpeg 路径改了能存住", async () => {
   await s.close();
 });
 
+test("ffmpeg 路径：相对路径按项目根解析，自带缺货退回 PATH", async () => {
+  const { resolveFfmpegPath } = await import("../src/ring-vision.mjs");
+  const { mkdirSync } = await import("node:fs");
+  // ① 空 / 'ffmpeg' → 交给 PATH
+  assert.equal(resolveFfmpegPath(""), "ffmpeg");
+  assert.equal(resolveFfmpegPath("ffmpeg"), "ffmpeg");
+  // ② 自带默认值 + bin 有货 → 项目根绝对路径（正反斜杠都认）
+  const root = mkdtempSync(join(tmpdir(), "rv-ffbin-"));
+  mkdirSync(join(root, "bin"), { recursive: true });
+  writeFileSync(join(root, "bin", "ffmpeg.exe"), "fake");
+  assert.equal(resolveFfmpegPath("bin/ffmpeg.exe", root), join(root, "bin", "ffmpeg.exe"));
+  assert.equal(resolveFfmpegPath("bin\\ffmpeg.exe", root), join(root, "bin", "ffmpeg.exe"));
+  // ③ 自带默认值但 bin 没货（新克隆）→ 退回 PATH 的 ffmpeg
+  const empty = mkdtempSync(join(tmpdir(), "rv-ffbin-empty-"));
+  assert.equal(resolveFfmpegPath("bin/ffmpeg.exe", empty), "ffmpeg");
+  // ④ 用户手填相对路径 → 解析；缺货照实返回（探测卡会如实报告"没装"）
+  assert.equal(resolveFfmpegPath("tools/ff.exe", empty), join(empty, "tools", "ff.exe"));
+  // ⑤ 绝对路径原样
+  assert.equal(resolveFfmpegPath("C:/custom/ff.exe", root), "C:/custom/ff.exe");
+});
+
+test("面板：ffmpeg 默认值解析到插件自带 bin（bin 就位时）", async (t) => {
+  if (!existsSync(join(process.cwd(), "bin", "ffmpeg.exe"))) return t.skip("bin/ffmpeg.exe 未就位（新克隆需先拷二进制）");
+  const { s } = await boot({ withKey: false });
+  const cfg = await j(await fetch(s.url + "/api/config"));
+  assert.match(
+    String(cfg.config.video.ffmpegPath).replace(/\\/g, "/"),
+    /留影\/bin\/ffmpeg\.exe$/,
+    "默认要落到插件自带的 bin/ffmpeg.exe",
+  );
+  await s.close();
+});
+
 /** 造一个假的"环形的心"项目根（data-location.json 是库路径的唯一事实源），RING_ROOT 指过去 */
 async function fakeRingRoot() {
   const { mkdirSync } = await import("node:fs");

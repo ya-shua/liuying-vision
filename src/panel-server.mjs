@@ -15,7 +15,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openEyeStore } from './store.mjs';
-import { fetchImage, describeVideo, isVideoUrl, repairMojibake } from './ring-vision.mjs';
+import { fetchImage, describeVideo, isVideoUrl, repairMojibake, resolveFfmpegPath } from './ring-vision.mjs';
 import { describeImage } from './describe.mjs';
 import { ffmpegAvailable } from './video.mjs';
 import { MODELS, ASR_MODELS } from './models.mjs';
@@ -84,7 +84,7 @@ function readConfigFile(configPath) {
       mode: 'even',
       intervalSec: 5,
       maxBytes: 64 * 1024 * 1024,
-      ffmpegPath: 'ffmpeg',
+      ffmpegPath: 'bin/ffmpeg.exe',
     },
   };
   configIssue = null;
@@ -112,6 +112,8 @@ function readConfigFile(configPath) {
     } catch {}
     configIssue = { error: e.message, backup };
   }
+  // ffmpeg 路径规范化：相对路径按项目根解析成绝对路径（spawn 里的相对路径按 cwd 解析，不可靠）
+  cfg.video.ffmpegPath = resolveFfmpegPath(cfg.video.ffmpegPath);
   return cfg;
 }
 
@@ -332,7 +334,7 @@ export async function createPanelServer({
             mode: v.mode === 'even' ? 'even' : 'interval',
             intervalSec: Math.max(1, Number(v.intervalSec) || 5),
             maxBytes: Math.max(1048576, Number(v.maxBytes) || 67108864),
-            ffmpegPath: String(v.ffmpegPath || 'ffmpeg'),
+            ffmpegPath: String(v.ffmpegPath || 'bin/ffmpeg.exe'),
           };
         } else delete next.video;
         if (next.asr && typeof next.asr === 'object') {

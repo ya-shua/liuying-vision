@@ -325,7 +325,7 @@
         <label>抽帧方式</label>
         <select id="v-mode"><option value="interval">按间隔秒</option><option value="even">按时长均匀分布</option><option value="scene">按镜头切换（画面一变才取）</option></select>
         <label>间隔秒</label><input type="text" id="v-interval" placeholder="5">
-        <label>ffmpeg 路径</label><input type="text" id="v-ffmpeg" placeholder="ffmpeg（在 PATH 里）或完整路径">
+        <label>ffmpeg 路径</label><input type="text" id="v-ffmpeg" placeholder="bin\ffmpeg.exe（插件自带）/ 完整路径 / ffmpeg（PATH）">
         <label>大小上限 MB</label><input type="text" id="v-maxmb" placeholder="64">
       </div>
     </div>
@@ -527,7 +527,7 @@ async function loadStatus() {
     `</div>`
   ).join('');
   const vs = $('v-ffmpeg-state');
-  if (vs) vs.textContent = r.ffmpeg ? '已检测到 ffmpeg ✓' : '未检测到 ffmpeg —— 视频会自动跳过（ffmpeg.org 下载，或在下面填完整路径）';
+  if (vs) vs.textContent = r.ffmpeg ? '已检测到 ffmpeg ✓' : '未检测到 ffmpeg —— 视频会自动跳过（插件自带 bin\\ffmpeg.exe、或 ffmpeg.org 下载后填完整路径）';
   fillConfig(cfg);
   renderCheck(cfg, r, outs);
 }

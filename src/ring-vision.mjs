@@ -129,7 +129,7 @@ export function defaultVisionConfig() {
       mode: 'even',                                // interval=按间隔秒 | even=按时长均匀 | scene=按镜头切换
       intervalSec: 5,                                  // interval 模式的间隔秒
       maxBytes: 64 * 1024 * 1024,                      // 视频太大不看（64MB）
-      ffmpegPath: 'ffmpeg',                            // ffmpeg 可执行文件路径
+      ffmpegPath: 'bin/ffmpeg.exe',                    // 插件自带（项目根 bin\，相对路径按项目根解析）；也可填完整路径或 'ffmpeg'（PATH）
     },
     asr: {                                             // 声音转文字（可选；视频里有人说话才值得开）
       enabled: false,                                  // 没配语音服务就是关
@@ -171,6 +171,23 @@ export function repairMojibake(cfg) {
 }
 
 /**
+ * ffmpeg 路径规范化（spawn 前必须过这一道 —— spawn 里的相对路径按进程 cwd 解析，不可靠）：
+ *   '' / 'ffmpeg'          → 交给 PATH
+ *   相对路径               → 相对**项目根**解析成绝对路径（插件自带的 bin/ffmpeg.exe 搬家不失灵）
+ *   绝对路径               → 原样
+ * 默认值 bin/ffmpeg.exe 而 bin 里没有（新克隆没拷二进制）→ 退回 PATH 的 ffmpeg；
+ * 用户手填的相对路径解析后不存在就照实返回 —— 探测卡会如实报告"没装"。
+ */
+export function resolveFfmpegPath(p, root = ROOT) {
+  const v = String(p ?? '').trim();
+  if (!v || v.toLowerCase() === 'ffmpeg') return 'ffmpeg';
+  if (/^[A-Za-z]:[\\/]/.test(v) || v.startsWith('\\\\')) return v; // 已是绝对路径（C:/ 或 UNC）
+  const abs = join(root, ...v.replace(/\\/g, '/').split('/'));
+  if (!existsSync(abs) && v.replace(/\\/g, '/') === 'bin/ffmpeg.exe') return 'ffmpeg';
+  return abs;
+}
+
+/**
  * 读配置：vision.json → 环境变量覆盖。
  * 文件位置：dataDir → 环境变量 RING_VISION_DATA → 项目根 data/。
  */
@@ -198,6 +215,7 @@ export function loadVisionConfig({ dataDir } = {}) {
   cfg.enabled = cfg.enabled !== false;
   // video / asr 深合并：文件里只写一部分也不丢默认值
   cfg.video = { ...defaultVisionConfig().video, ...(fileCfg?.video ?? {}) };
+  cfg.video.ffmpegPath = resolveFfmpegPath(cfg.video.ffmpegPath); // 相对路径按项目根解析，spawn 才不会走错 cwd
   cfg.asr = { ...defaultVisionConfig().asr, ...(fileCfg?.asr ?? {}) };
   cfg.dataDir = dir;
   return cfg;

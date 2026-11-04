@@ -13,3 +13,5 @@ docs/
 .DS_Store
 Thumbs.db
 desktop.ini
+# ffmpeg 二进制（218MB×2，插件自带但绝不入库）
+bin/
