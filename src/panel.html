@@ -255,9 +255,8 @@
     <a class="nav" data-sec="sec-video">视频调节</a>
     <a class="nav" data-sec="sec-outputs">输出去向</a>
     <div class="grow"></div>
-    <div class="side-foot">
+      <div class="side-foot">
       <span class="pill" id="p-state">读取中…</span>
-      <button class="close-btn" id="p-close" title="停掉后台服务并关闭面板">关闭面板</button>
     </div>
   </div>
   <div class="main">
@@ -1197,26 +1196,6 @@ $('d-save').addEventListener('click', async () => {
 });
 $('seen-refresh').addEventListener('click', loadSeen);
 
-/* 关闭面板：停掉后台服务，页面变灰 */
-$('p-close').addEventListener('click', async () => {
-  const btn = $('p-close');
-  btn.disabled = true;
-  btn.textContent = '正在关闭…';
-  try {
-    const r = await fetch('/api/shutdown', { method: 'POST' }).then((x) => x.json());
-    if (!r.ok) throw new Error(r.error || '没关成');
-    document.body.innerHTML =
-      '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;' +
-      'gap:14px;font:14px/1.7 system-ui,-apple-system,\'Segoe UI\',sans-serif;color:#9aa4b2;background:#0d1117">' +
-      '<div style="font-size:22px;color:#e8edf5;letter-spacing:1px">面板已关闭</div>' +
-      '<div>后台服务已经停了，这个标签页可以关掉。</div>' +
-      '<div style="font-size:12px;color:#5c6472">下次双击「留影面板」再开</div></div>';
-  } catch (e) {
-    btn.disabled = false;
-    btn.textContent = '关闭面板';
-    toast('没关成：' + e.message, 'bad');
-  }
-});
 
 const initView = location.hash.slice(1);
 if (initView) showTab(initView);
