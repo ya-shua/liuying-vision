@@ -62,3 +62,11 @@ export function openEyeStore(dataDir) {
   cache.set(dataDir, store);
   return store;
 }
+
+/** 关掉某个 dataDir 的账本连接（测试/面板退出用；不关的话 node:sqlite 句柄会吊住进程） */
+export function closeEyeStore(dataDir) {
+  const s = cache.get(dataDir);
+  if (!s) return;
+  cache.delete(dataDir);
+  try { s.db.close(); } catch { /* 关不掉就算了 */ }
+}

@@ -74,6 +74,7 @@ test("面板：试看只描述，不进任何输出、不写账本", async () =>
   assert.deepEqual(r.points, ["橘猫"]);
   assert.equal(existsSync(join(dataDir, "log.jsonl")), false, "试看不能触发输出");
   assert.equal(existsSync(join(dataDir, "eye.db")), true, "eye.db 会建（账本就绪）");
+  assert.equal(existsSync(join(dataDir, "media")), false, "试看不留档");
   await s.close();
 });
 
@@ -207,6 +208,21 @@ test("面板：ffmpeg 默认值解析到插件自带 bin（bin 就位时）", as
     /留影\/bin\/ffmpeg\.exe$/,
     "默认要落到插件自带的 bin/ffmpeg.exe",
   );
+  await s.close();
+});
+
+test("面板：留档上限能存住；scene 抽帧方式不再被保存吞掉", async () => {
+  const { s, dataDir } = await boot();
+  const r = await j(await fetch(s.url + "/api/config", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ retain: { images: 5, videoFrames: 3 }, video: { mode: "scene" } }),
+  }));
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.config.retain, { images: 5, videoFrames: 3 }, "留档上限往返");
+  assert.equal(r.config.video.mode, "scene", "scene 模式保存后原样");
+  const file = JSON.parse(readFileSync(join(dataDir, "vision.json"), "utf8"));
+  assert.equal(file.retain.images, 5, "落盘");
+  assert.equal(file.video.mode, "scene", "落盘");
   await s.close();
 });
 

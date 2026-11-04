@@ -24,7 +24,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -139,6 +139,10 @@ export function defaultVisionConfig() {
       maxSeconds: 120,                                 // 最长转写多少秒（控制量）
       language: '',                                    // 选填，如 zh；留空自动检测
     },
+    retain: {                                          // 留档：看过的媒体+分析留在 dataDir/media/（best-effort，0 = 不留）
+      images: 50,                                      // 最近 N 张图片（原图 + 同名 .json 分析）
+      videoFrames: 10,                                 // 最近 N 段视频（抽帧 + analysis.json）
+    },
   };
 }
 
@@ -187,6 +191,69 @@ export function resolveFfmpegPath(p, root = ROOT) {
   return abs;
 }
 
+/* ───────────────────────── 留档（media/） ─────────────────────────
+ * 看过的媒体和分析留在 dataDir/media/，超额删最旧：
+ *   media/images/<时间戳>-<hash>.<ext> + 同名 .json   ← 图片/动图原图 + 分析
+ *   media/videos/<时间戳>-<hash>/帧NN.jpg + analysis.json ← 视频抽帧 + 分析
+ * best-effort：留档挂了只写日志，绝不影响看图/扇出主流程。
+ * eye.db 永远记全量账（~1KB/条），这里滚动的只是"能翻回去看的原件"。 */
+
+let archiveSeq = 0; // 同秒内多份留档也要严格保序（并行处理时时间戳会撞）
+
+function extOfMime(m) {
+  return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' })[String(m || '')] || 'bin';
+}
+
+function archiveName() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  return `${stamp}-${String(++archiveSeq).padStart(4, '0')}`;
+}
+
+/** 按名字（= 时间序）裁掉最旧，媒体和它的分析一起删；视频目录是整包递归删 */
+function trimArchive(dir, keep) {
+  let names;
+  try { names = readdirSync(dir); } catch { return; }
+  const media = names.filter((f) => !f.endsWith('.json')).sort();
+  for (const f of media.slice(0, Math.max(0, media.length - keep))) {
+    try { rmSync(join(dir, f), { recursive: true, force: true }); } catch { /* 占用中就算了，下轮再删 */ }
+    try { rmSync(join(dir, f + '.json'), { force: true }); } catch {}
+  }
+}
+
+/**
+ * 存一份留档。@param kind 'video' → 抽帧包；其它（image/gif）→ 原图 + 分析。
+ * @param p { kind, hash, mime?, base64?, frameImages?, info {desc,points,url,chatKey,sender,at,model,ms,frameCount?} }
+ */
+function archiveMedia(cfg, p) {
+  try {
+    const r = cfg.retain ?? {};
+    const mediaRoot = join(cfg.dataDir, 'media');
+    const info = JSON.stringify({ ...p.info, hash: p.hash }, null, 2);
+    if (p.kind === 'video') {
+      const keep = Math.floor(Number(r.videoFrames ?? 10));
+      if (!Number.isFinite(keep) || keep <= 0) return; // 0 = 不留
+      const dir = join(mediaRoot, 'videos', archiveName() + '-' + String(p.hash).slice(0, 8));
+      mkdirSync(dir, { recursive: true });
+      (p.frameImages ?? []).forEach((f, i) => writeFileSync(join(dir, `帧${String(i + 1).padStart(2, '0')}.jpg`), Buffer.from(f.base64, 'base64')));
+      writeFileSync(join(dir, 'analysis.json'), info, 'utf8');
+      trimArchive(join(mediaRoot, 'videos'), keep);
+    } else {
+      const keep = Math.floor(Number(r.images ?? 50));
+      if (!Number.isFinite(keep) || keep <= 0) return;
+      const dir = join(mediaRoot, 'images');
+      mkdirSync(dir, { recursive: true });
+      const name = `${archiveName()}-${String(p.hash).slice(0, 8)}.${extOfMime(p.mime)}`;
+      writeFileSync(join(dir, name), Buffer.from(p.base64 ?? '', 'base64'));
+      writeFileSync(join(dir, `${name}.json`), info, 'utf8');
+      trimArchive(dir, keep);
+    }
+  } catch (e) {
+    console.error(`[留影] 留档失败（不影响主流程）：${e?.message ?? e}`);
+  }
+}
+
 /**
  * 读配置：vision.json → 环境变量覆盖。
  * 文件位置：dataDir → 环境变量 RING_VISION_DATA → 项目根 data/。
@@ -213,10 +280,11 @@ export function loadVisionConfig({ dataDir } = {}) {
   if (process.env.RING_VISION_MODEL) cfg.model = process.env.RING_VISION_MODEL;
   if (process.env.RING_VISION_BASE_URL) cfg.baseUrl = process.env.RING_VISION_BASE_URL;
   cfg.enabled = cfg.enabled !== false;
-  // video / asr 深合并：文件里只写一部分也不丢默认值
+  // video / asr / retain 深合并：文件里只写一部分也不丢默认值
   cfg.video = { ...defaultVisionConfig().video, ...(fileCfg?.video ?? {}) };
   cfg.video.ffmpegPath = resolveFfmpegPath(cfg.video.ffmpegPath); // 相对路径按项目根解析，spawn 才不会走错 cwd
   cfg.asr = { ...defaultVisionConfig().asr, ...(fileCfg?.asr ?? {}) };
+  cfg.retain = { ...defaultVisionConfig().retain, ...(fileCfg?.retain ?? {}) };
   cfg.dataDir = dir;
   return cfg;
 }
@@ -280,6 +348,7 @@ export async function describeVideo(videoBuffer, { cfg, channel, fetchImpl, text
     points: pts.slice(0, 6),
     ms,
     frames: ex.frames.length,
+    frameImages: ex.frames, // base64 帧图原样带出（留档用，不额外占内存——本来就是刚抽出来的）
   };
 }
 
@@ -296,7 +365,8 @@ export async function visionNote(input, opts = {}) {
   const ffmpegProbe = opts.ffmpegProbe ?? ffmpegAvailable; // 测试可注入
   try {
     const cfg = opts.cfg ?? loadVisionConfig({ dataDir: opts.dataDir });
-    if (!cfg.dataDir) cfg.dataDir = join(ROOT, 'data'); // 注入的 cfg 也兜底，别让 openEyeStore 收到 undefined
+    // 显式 dataDir 优先于 cfg 里的（测试隔离；也防留档/tmp 落错地方）——都没有才退项目根 data/
+    cfg.dataDir = opts.dataDir || cfg.dataDir || join(ROOT, 'data');
     if (!cfg.enabled) return { ok: true, skipped: 'disabled' };
 
     const outputs = (cfg.outputs ?? []).filter((o) => o && o.enabled !== false && (ADAPTERS[o.type] || (o.type === 'custom' && o.file)));
@@ -335,7 +405,7 @@ export async function visionNote(input, opts = {}) {
       const hash = urlHash(kind + '|' + url);
       if (store.hasSeen(hash)) { results[idx] = { url, kind, skipped: 'seen' }; return; }
 
-      let desc, points, ms, frames;
+      let desc, points, ms, frames, archiveSrc = null; // archiveSrc：要留档的东西（原图/帧图），成功路径统一交 archiveMedia
 
       if (kind === 'video') {
         // 视频：多步且容易失败 → 单条容错，一个视频坏了不拖累其它媒体
@@ -360,6 +430,7 @@ export async function visionNote(input, opts = {}) {
           }
           const out = await describeVideo(buf, { cfg, channel: ch, fetchImpl, text, audio: true, spawnImpl: opts.spawnImpl });
           desc = out.desc; points = out.points; ms = out.ms; frames = out.frames;
+          archiveSrc = { frameImages: out.frameImages };
         } catch (e) {
           console.error(`[留影] ✗ 视频没看成：${e?.message ?? e}`);
           results[idx] = { url, kind, error: String(e?.message ?? e) };
@@ -379,11 +450,13 @@ export async function visionNote(input, opts = {}) {
           }
           try {
             const out = await describeVideo(Buffer.from(img.base64, 'base64'), {
-              cfg, channels, fetchImpl, text, label: '动图',
+              cfg, channel: ch, fetchImpl, text, label: '动图', // 曾误传 channels 数组 → baseUrl undefined，真实动图必挂
               frames: Math.min(3, v.frames || 3), mode: 'even', intervalSec: 1,
+              spawnImpl: opts.spawnImpl,
             });
             desc = out.desc; points = out.points; ms = out.ms; frames = out.frames;
             kind = 'gif';
+            archiveSrc = { mime: img.mime, base64: img.base64 }; // 动图按"图"留档：存原图，帧随时可再抽
           } catch (e) {
             console.error(`[留影] ✗ 动图没看成：${e?.message ?? e}`);
             results[idx] = { url, kind: 'gif', error: String(e?.message ?? e) };
@@ -401,6 +474,7 @@ export async function visionNote(input, opts = {}) {
             timeoutMs: cfg.timeoutMs,
           });
           desc = out.desc; points = out.points; ms = out.ms;
+          archiveSrc = { mime: img.mime, base64: img.base64 };
         }
       }
 
@@ -418,6 +492,14 @@ export async function visionNote(input, opts = {}) {
       }
 
       store.record({ hash, url, chatKey: key, model: ch.model, desc, outputs: outputsResult, createdAt: at, ms, kind });
+
+      // 留档：图=原图+分析，视频=抽帧+分析（best-effort，挂了不影响任何主流程）
+      if (archiveSrc) {
+        archiveMedia(cfg, {
+          kind, hash, ...archiveSrc,
+          info: { desc, points, url, chatKey: key, sender, at, model: ch.model, ms, ...(kind === 'video' ? { frameCount: frames } : {}) },
+        });
+      }
 
       results[idx] = { url, kind, desc, points, ms, model: ch.model, ...(kind === 'video' || kind === 'gif' ? { frames } : {}), outputs: outputsResult };
       const what = kind === 'video' ? `看了一段视频（${frames} 帧）` : kind === 'gif' ? `看了一张动图（${frames} 帧）` : '看了一张图';

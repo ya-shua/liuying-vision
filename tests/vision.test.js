@@ -12,7 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -378,4 +378,108 @@ test("defaultVisionConfig：outputs 默认为空", () => {
   const cfg = defaultVisionConfig();
   assert.equal(cfg.enabled, false);
   assert.deepEqual(cfg.outputs, []);
+});
+
+/* ───────────── 留档（media/：原图/抽帧 + 分析，超额删最旧） ───────────── */
+
+function retentionCfg(dataDir, retain) {
+  return {
+    enabled: true, baseUrl: "https://vision.test/v4", model: "t", apiKey: "k",
+    dailyCap: 10, perMessage: 1, maxBytes: 1048576, timeoutMs: 1000,
+    outputs: [{ type: "jsonl", enabled: true, file: join(dataDir, "log.jsonl") }],
+    retain, video: { enabled: false },
+  };
+}
+
+test("留档：图片原图+分析成对落盘，超额删最旧（默认 50，可自定义）", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rv-keep-img-"));
+  const store = openEyeStore(dataDir);
+  let n = 0;
+  const fake = async (url) => {
+    if (String(url).includes("/chat/completions")) {
+      return { ok: true, json: async () => ({ choices: [{ message: { content: `{"desc":"第${++n}张图","points":[]}` } }] }) };
+    }
+    return { ok: true, arrayBuffer: async () => new Uint8Array([1, n]).buffer, headers: new Map([["content-type", "image/jpeg"]]) };
+  };
+  const cfg = retentionCfg(dataDir, { images: 2, videoFrames: 0 });
+  for (let i = 0; i < 3; i++) {
+    const r = await visionNote({ key: "g", sender: "u", images: [`https://gchat.qpic.cn/p${i}.jpg`], at: Date.now() }, { cfg, dataDir, store, fetchImpl: fake });
+    assert.equal(r.ok, true);
+  }
+  const dir = join(dataDir, "media", "images");
+  const media = readdirSync(dir).filter((f) => !f.endsWith(".json")).sort(); // 名字 = 时间序
+  assert.equal(media.length, 2, "超额删最旧：3 进 2 出");
+  assert.equal(existsSync(join(dir, media[0] + ".json")), true, "分析 JSON 与原图成对");
+  assert.equal(existsSync(join(dir, media[1] + ".json")), true, "分析 JSON 与原图成对");
+  assert.match(media[0], /\.jpg$/, "按 mime 定扩展名");
+  const newest = JSON.parse(readFileSync(join(dir, media[1] + ".json"), "utf8"));
+  assert.equal(newest.desc, "第3张图", "留下的是最新的");
+  assert.equal(newest.model, "t");
+});
+
+test("留档：视频抽帧+analysis 成包滚动，超额删最旧（默认 10，可自定义）", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rv-keep-vid-"));
+  const store = openEyeStore(dataDir);
+  let n = 0; // 每帧一次描述调用：2 帧/视频 → 第 3 段视频的最后一帧 = 第 6 段画面
+  const fakeSpawn = (cmd, args) => ({
+    stderr: { on() {} },
+    on(ev, cb) {
+      if (ev === "close") setTimeout(() => {
+        const outArg = args.find((a) => a.includes("%02d.jpg"));
+        if (outArg) for (let i = 1; i <= 2; i++) writeFileSync(outArg.replace("%02d", String(i).padStart(2, "0")), Buffer.from("jpg"));
+        cb(0);
+      }, 5);
+    },
+  });
+  const fake = async (url) => {
+    if (String(url).includes("/chat/completions")) {
+      return { ok: true, json: async () => ({ choices: [{ message: { content: `{"desc":"第${++n}段画面","points":[]}` } }] }) };
+    }
+    return { ok: true, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer, headers: new Map([["content-type", "video/mp4"]]) };
+  };
+  const cfg = retentionCfg(dataDir, { images: 0, videoFrames: 2 });
+  cfg.video = { enabled: true, frames: 2, mode: "interval", ffmpegPath: "ffmpeg", maxBytes: 1048576 };
+  for (let i = 0; i < 3; i++) {
+    const r = await visionNote({ key: "g", sender: "u", videos: [`https://v.test/${i}.mp4`], at: Date.now() }, { cfg, dataDir, store, fetchImpl: fake, spawnImpl: fakeSpawn, ffmpegProbe: async () => true });
+    assert.equal(r.ok, true);
+  }
+  const dir = join(dataDir, "media", "videos");
+  const bundles = readdirSync(dir).sort();
+  assert.equal(bundles.length, 2, "只留最近 2 包");
+  const frames = readdirSync(join(dir, bundles[1])).filter((f) => f.startsWith("帧"));
+  assert.equal(frames.length, 2, "帧图都在包里");
+  const a = JSON.parse(readFileSync(join(dir, bundles[1], "analysis.json"), "utf8"));
+  assert.equal(a.desc.includes("第6段画面"), true, "analysis.json 是最新的合并描述");
+  assert.equal(a.frameCount, 2, "帧数记录在案");
+});
+
+test("留档：上限 0 = 不留档", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rv-keep-off-"));
+  const store = openEyeStore(dataDir);
+  const fake = async (url) => {
+    if (String(url).includes("/chat/completions")) return { ok: true, json: async () => ({ choices: [{ message: { content: '{"desc":"x","points":[]}' } }] }) };
+    return { ok: true, arrayBuffer: async () => new Uint8Array([1]).buffer, headers: new Map([["content-type", "image/jpeg"]]) };
+  };
+  const cfg = retentionCfg(dataDir, { images: 0, videoFrames: 0 });
+  const r = await visionNote({ key: "g", sender: "u", images: ["https://gchat.qpic.cn/only.jpg"], at: Date.now() }, { cfg, dataDir, store, fetchImpl: fake });
+  assert.equal(r.ok, true);
+  assert.equal(existsSync(join(dataDir, "media")), false, "0 = 看完就删，什么都不留");
+});
+
+test("留档：动图走图片桶（存原图），gif 通道修复后能正常描述", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rv-keep-gif-"));
+  const store = openEyeStore(dataDir);
+  const fake = async (url) => {
+    if (String(url).includes("/chat/completions")) return { ok: true, json: async () => ({ choices: [{ message: { content: '{"desc":"一张动图","points":[]}' } }] }) };
+    return { ok: true, arrayBuffer: async () => new Uint8Array([1]).buffer, headers: new Map([["content-type", "image/gif"]]) };
+  };
+  const cfg = retentionCfg(dataDir, { images: 5, videoFrames: 0 });
+  cfg.video = { enabled: true, frames: 2, ffmpegPath: "ffmpeg" };
+  const r = await visionNote({ key: "g", sender: "u", images: ["https://gchat.qpic.cn/sticker.gif"], at: Date.now() }, { cfg, dataDir, store, fetchImpl: fake, ffmpegProbe: async () => true, spawnImpl: (cmd, args) => ({ stderr: { on() {} }, on(ev, cb) { if (ev === "close") setTimeout(() => { const out = (args || []).find((a) => a.includes("%02d.jpg")); if (out) for (let i = 1; i <= 2; i++) writeFileSync(out.replace("%02d", String(i).padStart(2, "0")), Buffer.from("jpg")); cb(0); }, 5); } }) });
+  assert.equal(r.ok, true);
+  assert.equal(r.results[0].error, undefined, "gif 修复后不再报错：" + (r.results[0].error ?? ""));
+  const dir = join(dataDir, "media", "images");
+  const media = readdirSync(dir).filter((f) => !f.endsWith(".json"));
+  assert.equal(media.length, 1);
+  assert.match(media[0], /\.gif$/, "动图按原图（.gif）留档");
 });

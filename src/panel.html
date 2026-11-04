@@ -306,10 +306,11 @@
     </div>
 
     <div class="card">
-      <div class="card-title">照片 · 大小与读取</div>
-      <div class="card-desc">图片的读取限制。试看入口在「功能」页。</div>
+      <div class="card-title">照片 · 大小与留档</div>
+      <div class="card-desc">图片的读取限制和留档。留档 = 原图 + 分析存进 data\media\，超额自动删最旧（eye.db 的账不受影响）。试看入口在「功能」页。</div>
       <div class="form">
         <label>大小上限 MB</label><input type="text" id="p-maxmb" placeholder="默认 8">
+        <label>图片留档</label><input type="text" id="c-retainImages" placeholder="默认 50 份（0 = 不留）">
       </div>
     </div>
     </div>
@@ -327,7 +328,9 @@
         <label>间隔秒</label><input type="text" id="v-interval" placeholder="5">
         <label>ffmpeg 路径</label><input type="text" id="v-ffmpeg" placeholder="bin\ffmpeg.exe（插件自带）/ 完整路径 / ffmpeg（PATH）">
         <label>大小上限 MB</label><input type="text" id="v-maxmb" placeholder="64">
+        <label>截图留档</label><input type="text" id="v-retainFrames" placeholder="默认 10 份（0 = 不留）">
       </div>
+      <div class="card-desc" style="margin-top:8px">留档 = 最近 N 段视频的抽帧和分析存进 data\media\videos\，超额删最旧。</div>
     </div>
 
     <div class="card">
@@ -825,6 +828,8 @@ function fillConfig(cfg) {
   $('v-interval').value = cfg.video?.intervalSec ?? 5;
   $('v-ffmpeg').value = cfg.video?.ffmpegPath ?? 'ffmpeg';
   $('v-maxmb').value = Math.round((cfg.video?.maxBytes ?? 67108864) / 1048576);
+  $('v-retainFrames').value = cfg.retain?.videoFrames ?? 10;
+  $('c-retainImages').value = cfg.retain?.images ?? 50;
   $('p-maxmb').value = Math.round((cfg.maxBytes ?? 8388608) / 1048576);
   $('a-enabled').value = (cfg.asr?.enabled && cfg.asr?.baseUrl) ? 'true' : 'false';
   $('a-baseUrl').value = cfg.asr?.baseUrl ?? '';
@@ -861,6 +866,14 @@ function collectOutputs() {
     out.push({ type: 'custom', enabled: true, file: $('o-custom-file').value.trim() });
   }
   return out;
+}
+
+function collectRetain() {
+  const num = (v, d) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n >= 0 ? n : d; };
+  return {
+    images: num($('c-retainImages').value, 50),
+    videoFrames: num($('v-retainFrames').value, 10),
+  };
 }
 
 function collectVideo() {
@@ -964,6 +977,7 @@ $('c-save').addEventListener('click', async () => {
       perMessage: Number($('c-perMessage').value) || 2,
       outputs: collectOutputs(),
       video: collectVideo(),
+      retain: collectRetain(),
       maxBytes: (Number($('p-maxmb').value) || 8) * 1048576,
     }),
   }).then((x) => x.json());

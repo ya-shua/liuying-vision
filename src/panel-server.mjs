@@ -14,7 +14,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { openEyeStore } from './store.mjs';
+import { openEyeStore, closeEyeStore } from './store.mjs';
 import { fetchImage, describeVideo, isVideoUrl, repairMojibake, resolveFfmpegPath } from './ring-vision.mjs';
 import { describeImage } from './describe.mjs';
 import { ffmpegAvailable } from './video.mjs';
@@ -85,6 +85,10 @@ function readConfigFile(configPath) {
       intervalSec: 5,
       maxBytes: 64 * 1024 * 1024,
       ffmpegPath: 'bin/ffmpeg.exe',
+    },
+    retain: {
+      images: 50,       // 最近 N 张图（原图 + 分析），0 = 不留
+      videoFrames: 10,  // 最近 N 段视频（抽帧 + 分析），0 = 不留
     },
   };
   configIssue = null;
@@ -191,6 +195,7 @@ export async function createPanelServer({
   dataDir = dataDir || process.env.RING_VISION_DATA || readPointerDataDir() || join(ROOT, 'data');
   let configPath = join(dataDir, 'vision.json');
   let store = openEyeStore(dataDir);
+  let storeDir = dataDir; // 迁移存储位置后会换目录，close 时要关当前那份
 
   const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x');
@@ -260,7 +265,9 @@ export async function createPanelServer({
         writeFileSync(pointerPath, JSON.stringify({ dataDir: dir, movedAt: Date.now() }, null, 2) + '\n');
         dataDir = dir;
         configPath = join(dataDir, 'vision.json');
+        closeEyeStore(storeDir); // 旧目录的账本连接放掉（openEyeStore 有 cache，不关会一直吊着）
         store = openEyeStore(dataDir);
+        storeDir = dataDir;
         return json(res, 200, { ok: true, dataDir: dir, moved });
       }
 
@@ -317,7 +324,7 @@ export async function createPanelServer({
         const body = await readBody(req);
         const cur = readConfigFile(configPath);
         const next = { ...cur };
-        for (const k of ['enabled', 'baseUrl', 'model', 'apiKey', 'dailyCap', 'perMessage', 'maxBytes', 'timeoutMs', 'outputs', 'video', 'channels', 'asr']) {
+        for (const k of ['enabled', 'baseUrl', 'model', 'apiKey', 'dailyCap', 'perMessage', 'maxBytes', 'timeoutMs', 'outputs', 'video', 'channels', 'asr', 'retain']) {
           if (k in body) next[k] = body[k];
         }
         // key 打码保护：面板传空/传打码串 = 不改
@@ -331,12 +338,17 @@ export async function createPanelServer({
           next.video = {
             enabled: v.enabled !== false,
             frames: Math.max(1, Math.min(10, Number(v.frames) || 3)),
-            mode: v.mode === 'even' ? 'even' : 'interval',
+            mode: ['even', 'interval', 'scene'].includes(v.mode) ? v.mode : 'interval', // scene 曾被这里吞成 interval
             intervalSec: Math.max(1, Number(v.intervalSec) || 5),
             maxBytes: Math.max(1048576, Number(v.maxBytes) || 67108864),
             ffmpegPath: String(v.ffmpegPath || 'bin/ffmpeg.exe'),
           };
         } else delete next.video;
+        if (next.retain && typeof next.retain === 'object') {
+          const rr = next.retain;
+          const cap = (x, d) => { const n = Math.floor(Number(x)); return Number.isFinite(n) && n >= 0 ? n : d; };
+          next.retain = { images: cap(rr.images, 50), videoFrames: cap(rr.videoFrames, 10) };
+        } else delete next.retain;
         if (next.asr && typeof next.asr === 'object') {
           const a = next.asr;
           const baseUrl = String(a.baseUrl || '').trim();
@@ -386,5 +398,13 @@ export async function createPanelServer({
   const addr = server.address();
   const url = `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${addr.port}`;
 
-  return { server, url, port: addr.port, close: () => new Promise((r) => server.close(r)) };
+  return {
+    server,
+    url,
+    port: addr.port,
+    close: () => new Promise((r) => {
+      try { closeEyeStore(storeDir); } catch { /* 关不掉就算了 */ }
+      server.close(r);
+    }),
+  };
 }
