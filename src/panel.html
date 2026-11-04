@@ -31,22 +31,38 @@
       radial-gradient(ellipse 72% 56% at 84% 12%, rgba(126,110,170,.05), transparent 66%),
       linear-gradient(168deg, #0a0d15 0%, #0b0f18 38%, #090c13 72%, #0a0d14 100%);
     min-height: 100vh;
-    padding: 22px 26px 40px;
   }
-  .wrap { max-width: 980px; margin: 0 auto; }
-  .head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-  .brand {
-    display: inline-flex; align-items: center; gap: 9px;
-    padding: 6px 14px 6px 10px; border-radius: 999px;
-    background: rgba(10,13,21,.55); border: 1px solid var(--border-soft);
-    font-weight: 700; letter-spacing: 1px; font-size: 13.5px;
+  /* 全局布局：左导航 + 右内容 */
+  .layout { display: grid; grid-template-columns: 176px 1fr; min-height: 100vh; }
+  .sidebar {
+    position: sticky; top: 0; height: 100vh; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 18px 12px 16px;
+    background: rgba(6,9,14,.72); border-right: 1px solid var(--border-soft);
+    backdrop-filter: blur(14px);
   }
-  .brand .mark {
-    width: 16px; height: 16px; border-radius: 50%;
+  .sidebar .brand {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 700; letter-spacing: 1px; font-size: 14px;
+    padding: 2px 10px 14px; margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .sidebar .brand .mark {
+    width: 15px; height: 15px; border-radius: 50%; flex: none;
     background: radial-gradient(circle at 38% 34%, #ffe9b0, var(--eye) 55%, #b97f2e);
     box-shadow: 0 0 12px rgba(255,212,121,.5);
   }
-  .brand small { color: var(--faint); font-weight: 400; letter-spacing: .5px; font-size: 11px; }
+  .sidebar .brand small { color: var(--faint); font-weight: 400; font-size: 10.5px; letter-spacing: .5px; }
+  .sidebar a.nav {
+    padding: 8px 12px; border-radius: 9px; font-size: 13px; color: var(--dim);
+    cursor: pointer; user-select: none; border-left: 2px solid transparent;
+  }
+  .sidebar a.nav:hover { color: var(--text); background: var(--glass-hover); }
+  .sidebar a.nav.on { color: var(--eye); background: rgba(255,212,121,.09); border-left-color: var(--eye); }
+  .sidebar .sep { height: 1px; background: var(--border-soft); margin: 9px 8px; }
+  .sidebar .grow { flex: 1; }
+  .sidebar .side-foot { display: grid; gap: 8px; padding: 0 6px; }
+  .main { padding: 24px 30px 48px; max-width: 940px; width: 100%; box-sizing: border-box; }
   .close-btn { padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
     background: rgba(255,125,125,.07); border: 1px solid rgba(255,125,125,.3); color: var(--bad);
     transition: background .15s, border-color .15s; }
@@ -228,19 +244,23 @@
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="head">
+<div class="layout">
+  <div class="sidebar">
     <div class="brand"><span class="mark"></span>留影<small>视觉接入</small></div>
+    <a class="nav on" data-view="func">功能</a>
+    <a class="nav" data-view="archive">留档</a>
+    <div class="sep"></div>
+    <a class="nav" data-sec="sec-access">模型接入</a>
+    <a class="nav" data-sec="sec-photo">照片调节</a>
+    <a class="nav" data-sec="sec-video">视频调节</a>
+    <a class="nav" data-sec="sec-outputs">输出去向</a>
     <div class="grow"></div>
-    <span class="pill" id="p-state">读取中…</span>
-    <button class="close-btn" id="p-close" title="停掉后台服务并关闭面板">关闭面板</button>
+    <div class="side-foot">
+      <span class="pill" id="p-state">读取中…</span>
+      <button class="close-btn" id="p-close" title="停掉后台服务并关闭面板">关闭面板</button>
+    </div>
   </div>
-
-  <div class="tabs">
-    <div class="tab on" data-view="func">功能</div>
-    <div class="tab" data-view="archive">留档</div>
-    <div class="tab" data-view="settings">设置</div>
-  </div>
+  <div class="main">
 
   <!-- ══════ 功能展示 ══════ -->
   <div class="view on" id="view-func">
@@ -324,18 +344,10 @@
     </table>
   </div>
 
-  <!-- ══════ 设置 ══════ -->
-  <div class="view" id="view-settings">
-    <div class="settings-body">
-      <div class="settings-nav" id="settings-nav">
-        <a data-sec="sec-access" class="on">模型接入</a>
-        <a data-sec="sec-photo">照片调节</a>
-        <a data-sec="sec-video">视频调节</a>
-        <a data-sec="sec-outputs">输出去向</a>
-      </div>
-      <div class="settings-content">
-    <div id="sec-access">
-    <div class="sec-title" style="margin-top:2px">模型接入</div>
+<!-- ══════ 设置 ══════ -->
+<div class="view" id="view-settings">
+<div id="sec-access">
+<div class="sec-title" style="margin-top:2px">模型接入</div>
     <div class="card key-card">
       <div class="card-title">视觉模型</div>
       <div class="card-desc">地址 + 模型必填，key 选填（要鉴权的接口才填）。多加几条免费通道 = 并发加速。</div>
@@ -488,15 +500,14 @@
       </div>
     </div>
     </div><!-- /sec-outputs -->
-      </div><!-- /settings-content -->
-    </div><!-- /settings-body -->
-  </div><!-- /view-settings -->
+</div><!-- /view-settings -->
 
-    <div class="savebar">
-      <span class="hint" id="c-hint">设置保存在 vision.json（数据目录里）</span>
-      <button class="btn primary" id="c-save">保存设置</button>
-    </div>
-  </div>
+<div class="savebar">
+<span class="hint" id="c-hint">设置保存在 vision.json（数据目录里）</span>
+<button class="btn primary" id="c-save">保存设置</button>
+</div>
+  </div><!-- /main -->
+</div><!-- /layout -->
 
 <div class="toast" id="toast"></div>
 
@@ -519,28 +530,38 @@ function toast(msg, kind = '') {
   toastTimer = setTimeout(() => { el.className = 'toast ' + kind; }, 2200);
 }
 
-/* 页签切换（带 #hash，刷新不丢当前页；旧书签 #access/#photo/#video/#outputs 自动落进设置页） */
-function showTab(view) {
-  if (['access', 'outputs', 'photo', 'video'].includes(view)) view = 'settings';
-  const t = document.querySelector('.tab[data-view="' + view + '"]');
-  if (!t) return;
-  document.querySelectorAll('.tab[data-view]').forEach((x) => x.classList.remove('on'));
+/* 左侧导航：功能/留档 一级，四个设置模块直达（旧书签 #access 等自动落进设置页对应模块） */
+function showTab(view, sec) {
+  if (['access', 'outputs', 'photo', 'video'].includes(view)) { sec = sec || view; view = 'settings'; }
+  if (!$('view-' + view)) return;
+  if (sec && !sec.startsWith('sec-')) sec = 'sec-' + sec; // 旧书签传短名（#video），侧栏传完整 id（sec-video）
+  document.querySelectorAll('.sidebar a.nav[data-view]').forEach((x) => x.classList.toggle('on', x.dataset.view === view));
+  if (view !== 'settings') {
+    document.querySelectorAll('.sidebar a.nav[data-sec]').forEach((x) => x.classList.remove('on'));
+  }
   document.querySelectorAll('.view').forEach((x) => x.classList.remove('on'));
-  t.classList.add('on');
   $('view-' + view).classList.add('on');
   if (location.hash.slice(1) !== view) history.replaceState(null, '', '#' + view);
-  if (view === 'archive') loadArchive(); // 进留档页就拉一次（文件可能刚被留档流程写进去）
+  if (view === 'archive') loadArchive();
+  if (view === 'settings' && sec) {
+    setTimeout(() => {
+      const el = document.getElementById(sec);
+      if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 14);
+      document.querySelectorAll('.sidebar a.nav[data-sec]').forEach((x) => x.classList.toggle('on', x.dataset.sec === sec));
+    }, 0);
+  }
 }
-document.querySelectorAll('.tab[data-view]').forEach((t) => {
+document.querySelectorAll('.sidebar a.nav[data-view]').forEach((t) => {
   t.addEventListener('click', () => showTab(t.dataset.view));
+});
+document.querySelectorAll('.sidebar a.nav[data-sec]').forEach((t) => {
+  t.addEventListener('click', () => showTab('settings', t.dataset.sec));
 });
 window.addEventListener('hashchange', () => {
   const v = location.hash.slice(1);
   if (v) showTab(v);
 });
-function gotoTab(view) {
-  showTab(view);
-}
+function gotoTab(view) { showTab(view); }
 
 /* 留档页：看过的原件 + 分析（图片区 / 视频区），底下还有全部记录表 */
 let archData = null;
@@ -590,15 +611,11 @@ async function loadArchive() {
 }
 $('arch-refresh').addEventListener('click', () => { loadArchive(); loadSeen(); });
 
-/* 设置页模块导航：点了滚过去，滚动时高亮当前模块 */
-const secNavLinks = [...document.querySelectorAll('#settings-nav a')];
-secNavLinks.forEach((a) => a.addEventListener('click', () => {
-  document.getElementById(a.dataset.sec)?.scrollIntoView({ behavior: 'auto', block: 'start' });
-}));
+/* 设置页滚动时，侧栏高亮当前模块 */
 const secSpy = new IntersectionObserver((entries) => {
   for (const e of entries) {
     if (!e.isIntersecting) continue;
-    secNavLinks.forEach((a) => a.classList.toggle('on', a.dataset.sec === e.target.id));
+    document.querySelectorAll('.sidebar a.nav[data-sec]').forEach((x) => x.classList.toggle('on', x.dataset.sec === e.target.id));
   }
 }, { rootMargin: '-15% 0px -65% 0px' });
 ['sec-access', 'sec-photo', 'sec-video', 'sec-outputs'].forEach((id) => {
