@@ -292,39 +292,32 @@
 
   <!-- ══════ 留档 ══════ -->
     <div class="view" id="view-archive">
-    <div class="hint" style="margin:0 0 14px">这里翻「历史」：<b>图片 / 视频</b> = 留档的原件 + 分析（存在 <span id="arch-root"></span>，超额自动删最旧，上限在「设置」页改）；<b>全部记录</b> = eye.db 的全量流水账，换输出去向也不丢。</div>
-    <div class="row" style="margin-bottom:10px">
-      <button class="btn primary" id="arch-kind-images">图片</button>
-      <button class="btn" id="arch-kind-videos">视频</button>
-      <button class="btn" id="arch-kind-ledger">全部记录</button>
+    <div class="hint" style="margin:0 0 14px">这里翻「历史」：<b>图片 / 视频</b> = 留档的原件 + 分析（存在 <span id="arch-root"></span>，超额自动删最旧，上限在「设置」页改）；最底下是 <b>全部记录</b> —— eye.db 的全量流水账，换输出去向也不丢。</div>
+    <div class="row" style="margin-bottom:16px">
       <button class="btn" id="arch-refresh">刷新</button>
-      <span class="count" id="arch-count"></span>
     </div>
-    <div id="arch-media">
-      <div id="arch-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px"></div>
-      <div class="hint" id="arch-empty" style="display:none">还没有留档 —— 等真的看过图/视频后，这里就会出现它们的原件和分析。</div>
+
+    <div class="sec-title">图片留档 <span class="count" id="arch-count-images"></span></div>
+    <div id="arch-grid-images" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px"></div>
+    <div class="hint" id="arch-empty-images" style="display:none">还没有图片留档 —— 看过图之后，这里就有原图和分析。</div>
+
+    <div class="sec-title" style="margin-top:24px">视频留档 <span class="count" id="arch-count-videos"></span></div>
+    <div id="arch-grid-videos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
+    <div class="hint" id="arch-empty-videos" style="display:none">还没有视频留档 —— 看过视频之后，这里就有抽帧和分析。</div>
+
+    <div class="sec-title" style="margin-top:24px">全部记录 <span class="count" id="seen-count"></span></div>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn" id="seen-refresh">刷新</button>
     </div>
-    <div id="arch-ledger" style="display:none">
-      <div class="row" style="margin-bottom:10px">
-        <button class="btn" id="seen-refresh">刷新</button>
-        <span class="count" id="seen-count"></span>
-      </div>
-      <table>
-        <thead><tr><th>时间</th><th>描述</th><th>输出去向</th><th style="text-align:right">耗时</th><th>图链</th></tr></thead>
-        <tbody id="seen-rows"><tr><td colspan="5" class="empty">读取中…</td></tr></tbody>
-      </table>
-    </div>
+    <table>
+      <thead><tr><th>时间</th><th>描述</th><th>输出去向</th><th style="text-align:right">耗时</th><th>图链</th></tr></thead>
+      <tbody id="seen-rows"><tr><td colspan="5" class="empty">读取中…</td></tr></tbody>
+    </table>
   </div>
 
   <!-- ══════ 设置 ══════ -->
   <div class="view" id="view-settings">
-    <div class="tabs subtabs" style="margin-bottom:14px">
-      <div class="tab on" data-sub="access">模型接入</div>
-      <div class="tab" data-sub="outputs">输出去向</div>
-      <div class="tab" data-sub="photo">照片</div>
-      <div class="tab" data-sub="video">视频</div>
-    </div>
-    <div class="subview on" id="sub-access">
+    <div class="sec-title" style="margin-top:2px">模型接入</div>
     <div class="card key-card">
       <div class="card-title">视觉模型</div>
       <div class="card-desc">接口地址 + 模型名必填；apiKey 选填 —— 空 = 不带鉴权头，本地/免费接口直接用（参照 DeepSeek 的接法：token 空 = 不带鉴权头）。</div>
@@ -340,9 +333,7 @@
       </div>
     </div>
 
-    </div>
-    </div><!-- /sub-access -->
-    <div class="subview" id="sub-photo">
+    <div class="sec-title" style="margin-top:24px">照片调节</div>
     <div class="card">
       <div class="card-title">节奏与开关</div>
       <div class="card-desc">整体看多少、多快。上限都按「媒体」数 —— 一张图和一段视频都算一个。</div>
@@ -362,10 +353,8 @@
         <label>图片留档</label><input type="text" id="c-retainImages" placeholder="默认 50 份（0 = 不留）">
       </div>
     </div>
-    </div>
-    </div><!-- /sub-photo -->
-    <div class="subview" id="sub-video">
-    <div class="hint" style="margin:0 0 14px">总开关和日限在「照片」子页；下面是视频自己的参数。</div>
+    <div class="sec-title" style="margin-top:24px">视频调节</div>
+    <div class="hint" style="margin:0 0 14px">总开关和日限在上面「照片调节」；下面是视频自己的参数。</div>
     <div class="card">
       <div class="card-title">视频 · 抽帧（画面）</div>
       <div class="card-desc">视频来了先抽帧、逐帧看，描述合并成一条记忆。需要本机有 ffmpeg —— <span id="v-ffmpeg-state" class="hint">探测中…</span></div>
@@ -398,9 +387,7 @@
       </div>
     </div>
 
-    </div>
-    </div><!-- /sub-video -->
-    <div class="subview" id="sub-outputs">
+    <div class="sec-title" style="margin-top:24px">输出去向</div>
     <div class="card">
       <div class="card-title">存储位置</div>
       <div class="card-desc">vision.json（配置）和 eye.db（审计账本）存这里。改了会<b>自动迁移</b>过去（目标已有账本会拒绝，防覆盖）；qq-bridge 那边不用改任何东西。</div>
@@ -478,7 +465,6 @@
         </div>
       </div>
     </div>
-  </div><!-- /sub-outputs -->
   </div><!-- /view-settings -->
 
     <div class="savebar">
@@ -486,7 +472,6 @@
       <button class="btn primary" id="c-save">保存设置</button>
     </div>
   </div>
-</div>
 
 <div class="toast" id="toast"></div>
 
@@ -509,16 +494,9 @@ function toast(msg, kind = '') {
   toastTimer = setTimeout(() => { el.className = 'toast ' + kind; }, 2200);
 }
 
-/* 页签切换（带 #hash，刷新不丢当前页；旧书签 #access/#photo/#video/#outputs 自动落进设置页对应子页） */
-let currentSub = 'access';
-function showSub(sub) {
-  currentSub = sub;
-  document.querySelectorAll('.tab[data-sub]').forEach((x) => x.classList.toggle('on', x.dataset.sub === sub));
-  document.querySelectorAll('.subview').forEach((x) => x.classList.toggle('on', x.id === 'sub-' + sub));
-}
+/* 页签切换（带 #hash，刷新不丢当前页；旧书签 #access/#photo/#video/#outputs 自动落进设置页） */
 function showTab(view) {
-  let sub = null;
-  if (['access', 'outputs', 'photo', 'video'].includes(view)) { sub = view; view = 'settings'; }
+  if (['access', 'outputs', 'photo', 'video'].includes(view)) view = 'settings';
   const t = document.querySelector('.tab[data-view="' + view + '"]');
   if (!t) return;
   document.querySelectorAll('.tab[data-view]').forEach((x) => x.classList.remove('on'));
@@ -527,13 +505,9 @@ function showTab(view) {
   $('view-' + view).classList.add('on');
   if (location.hash.slice(1) !== view) history.replaceState(null, '', '#' + view);
   if (view === 'archive') loadArchive(); // 进留档页就拉一次（文件可能刚被留档流程写进去）
-  if (view === 'settings') showSub(sub || currentSub);
 }
 document.querySelectorAll('.tab[data-view]').forEach((t) => {
   t.addEventListener('click', () => showTab(t.dataset.view));
-});
-document.querySelectorAll('.tab[data-sub]').forEach((t) => {
-  t.addEventListener('click', () => showSub(t.dataset.sub));
 });
 window.addEventListener('hashchange', () => {
   const v = location.hash.slice(1);
@@ -543,63 +517,53 @@ function gotoTab(view) {
   showTab(view);
 }
 
-/* 留档页：看过的原件 + 分析 */
+/* 留档页：看过的原件 + 分析（图片区 / 视频区），底下还有全部记录表 */
 let archData = null;
-let archKind = 'images';
-function setArchKind(k) {
-  archKind = k;
-  ['images', 'videos', 'ledger'].forEach((x) => {
-    const b = $('arch-kind-' + x);
-    if (b) b.className = 'btn' + (k === x ? ' primary' : '');
-  });
-  $('arch-media').style.display = k === 'ledger' ? 'none' : '';
-  $('arch-ledger').style.display = k === 'ledger' ? 'block' : 'none';
-  if (k === 'ledger') loadSeen();
-  else if (archData) renderArchive();
+function archCard(it, kind) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.cssText = 'margin:0;padding:8px';
+  const meta = [it.at ? new Date(Number(it.at)).toLocaleString() : '', it.model ?? '', kind === 'videos' ? (it.frameCount ?? 0) + ' 帧' : '']
+    .filter(Boolean).join(' · ');
+  if (kind === 'images') {
+    const src = '/media/images/' + encodeURIComponent(it.file);
+    card.innerHTML = `<img src="${src}" loading="lazy" style="width:100%;height:150px;object-fit:cover;border-radius:8px;cursor:zoom-in">`
+      + `<div style="margin-top:6px;font-size:13px">${esc(it.desc ?? '')}</div>`
+      + `<div class="hint" style="margin-top:4px">${esc(meta)}</div>`;
+    card.querySelector('img').addEventListener('click', () => window.open(src, '_blank'));
+  } else {
+    const frames = [];
+    for (let i = 1; i <= (it.frameCount ?? 0); i++) {
+      frames.push('/media/videos/' + encodeURIComponent(it.bundle) + '/' + encodeURIComponent('帧' + String(i).padStart(2, '0') + '.jpg'));
+    }
+    card.innerHTML = `<div style="display:flex;gap:4px;overflow-x:auto">${frames.map((f) => `<img src="${f}" loading="lazy" style="height:110px;flex:0 0 auto;border-radius:6px;cursor:zoom-in">`).join('')}</div>`
+      + `<div style="margin-top:6px;font-size:13px">${esc(it.desc ?? '')}</div>`
+      + `<div class="hint" style="margin-top:4px">${esc(meta)}</div>`;
+    card.querySelectorAll('img').forEach((im) => im.addEventListener('click', () => window.open(im.src, '_blank')));
+  }
+  return card;
+}
+function renderBucket(list, gridId, emptyId, countId, kind) {
+  const grid = $(gridId);
+  grid.innerHTML = '';
+  $(emptyId).style.display = list.length ? 'none' : 'block';
+  const cnt = $(countId);
+  if (cnt) cnt.textContent = list.length ? '共 ' + list.length + ' 份' : '（空）';
+  for (const it of list) grid.appendChild(archCard(it, kind));
+}
+function renderArchive() {
+  if (!archData) return;
+  renderBucket(archData.images ?? [], 'arch-grid-images', 'arch-empty-images', 'arch-count-images', 'images');
+  renderBucket(archData.videos ?? [], 'arch-grid-videos', 'arch-empty-videos', 'arch-count-videos', 'videos');
 }
 async function loadArchive() {
   try {
     archData = await fetch('/api/archive').then((r) => r.json());
     if ($('arch-root')) $('arch-root').textContent = String(archData.root || '').replace(/\//g, '\\');
-    if (archKind !== 'ledger') renderArchive();
+    renderArchive();
   } catch { /* 拉不到就等下一次刷新 */ }
 }
-function renderArchive() {
-  const grid = $('arch-grid');
-  if (!grid || !archData) return;
-  grid.innerHTML = '';
-  const list = archKind === 'images' ? (archData.images ?? []) : (archData.videos ?? []);
-  $('arch-empty').style.display = list.length ? 'none' : 'block';
-  $('arch-count').textContent = list.length ? `共 ${list.length} 份` : '';
-  for (const it of list) {
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.style.cssText = 'margin:0;padding:8px';
-    const meta = [it.at ? new Date(Number(it.at)).toLocaleString() : '', it.model ?? '', archKind === 'videos' ? (it.frameCount ?? 0) + ' 帧' : '']
-      .filter(Boolean).join(' · ');
-    if (archKind === 'images') {
-      const src = '/media/images/' + encodeURIComponent(it.file);
-      card.innerHTML = `<img src="${src}" loading="lazy" style="width:100%;height:150px;object-fit:cover;border-radius:8px;cursor:zoom-in">`
-        + `<div style="margin-top:6px;font-size:13px">${esc(it.desc ?? '')}</div>`
-        + `<div class="hint" style="margin-top:4px">${esc(meta)}</div>`;
-      card.querySelector('img').addEventListener('click', () => window.open(src, '_blank'));
-    } else {
-      const frames = [];
-      for (let i = 1; i <= (it.frameCount ?? 0); i++) {
-        frames.push('/media/videos/' + encodeURIComponent(it.bundle) + '/' + encodeURIComponent('帧' + String(i).padStart(2, '0') + '.jpg'));
-      }
-      card.innerHTML = `<div style="display:flex;gap:4px;overflow-x:auto">${frames.map((f) => `<img src="${f}" loading="lazy" style="height:110px;flex:0 0 auto;border-radius:6px;cursor:zoom-in">`).join('')}</div>`
-        + `<div style="margin-top:6px;font-size:13px">${esc(it.desc ?? '')}</div>`
-        + `<div class="hint" style="margin-top:4px">${esc(meta)}</div>`;
-      card.querySelectorAll('img').forEach((im) => im.addEventListener('click', () => window.open(im.src, '_blank')));
-    }
-    grid.appendChild(card);
-  }
-}
-$('arch-kind-images').addEventListener('click', () => setArchKind('images'));
-$('arch-kind-videos').addEventListener('click', () => setArchKind('videos'));
-$('arch-kind-ledger').addEventListener('click', () => setArchKind('ledger'));
-$('arch-refresh').addEventListener('click', () => (archKind === 'ledger' ? loadSeen() : loadArchive()));
+$('arch-refresh').addEventListener('click', () => { loadArchive(); loadSeen(); });
 
 /* 状态 + 磁贴 + 引导横幅 */
 async function loadStatus() {
