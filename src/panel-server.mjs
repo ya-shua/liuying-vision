@@ -203,7 +203,8 @@ export async function createPanelServer({
 
     try {
       if (req.method === 'GET' && p === '/') {
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        // no-store：改了面板必须刷新就生效，别让浏览器拿旧页面让人以为"改了没用"
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(readFileSync(PANEL_HTML));
       }
 

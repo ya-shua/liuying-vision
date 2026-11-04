@@ -69,14 +69,15 @@
   .view { display: none; }
   .view.on { display: block; }
 
-  /* 设置页二级页签 */
-  .subtabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
-  .subtab { padding: 5px 14px; border-radius: 999px; cursor: pointer; font-size: 12px;
-    background: var(--glass); border: 1px solid var(--border); color: var(--dim); user-select: none; transition: .15s; }
-  .subtab:hover { color: var(--text); background: var(--glass-hover); }
-  .subtab.on { color: var(--eye); background: rgba(255,212,121,.1); border-color: rgba(255,212,121,.35); }
-  .subview { display: none; }
-  .subview.on { display: block; }
+  /* 设置页区块标题 —— 页面的主节奏 */
+  .sec-title {
+    font-size: 15px; font-weight: 700; letter-spacing: .3px;
+    display: flex; align-items: baseline; gap: 10px;
+    margin: 26px 0 12px; padding-left: 11px;
+    border-left: 3px solid var(--eye);
+  }
+  .sec-title:first-child { margin-top: 2px; }
+  .sec-title .count { margin-left: 0; }
 
   .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .stat {
@@ -102,11 +103,11 @@
     background: rgba(255,192,107,.14); border: 1px solid rgba(255,192,107,.45); color: var(--warn); }
 
   .card {
-    background: rgba(10,13,21,.72); border: 1px solid var(--border); border-radius: 14px;
-    backdrop-filter: blur(14px); padding: 18px 20px; margin-bottom: 16px;
+    background: rgba(10,13,21,.6); border: 1px solid var(--border-soft); border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 12px;
   }
-  .card-title { font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
-  .card-desc { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--dim); margin-bottom: 2px; }
+  .card-desc { color: var(--faint); font-size: 11.5px; margin-bottom: 12px; }
 
   .row { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
   input[type="text"], select {
@@ -148,11 +149,11 @@
   .result .pts b { color: var(--eye); font-weight: 600; }
   .result .err { color: var(--bad); font-size: 12px; }
 
-  .form { display: grid; grid-template-columns: 130px 1fr; gap: 10px 14px; align-items: center; }
+  .form { display: grid; grid-template-columns: 96px 1fr; gap: 8px 12px; align-items: center; }
   .form label { color: var(--dim); font-size: 12px; }
   .form .full { grid-column: 1 / -1; }
   .hint { font-size: 11px; color: var(--faint); }
-  .save-row { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+  .save-row { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; margin-top: 2px; }
   .err { color: var(--bad); font-size: 12px; }
 
   /* 结果头部：耗时 + 复制 */
@@ -189,8 +190,7 @@
   }
 
   /* 接入 Key 专用卡 */
-  .key-card { border-color: rgba(255,212,121,.35);
-    background: linear-gradient(168deg, rgba(28,22,10,.8), rgba(14,11,6,.9)); }
+  .key-card { border-color: rgba(255,212,121,.3); }
   .key-card .card-title { color: var(--eye); }
   .key-row { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
   .key-row input { flex: 1; min-width: 240px; }
@@ -214,8 +214,6 @@
   .s-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
            font-size: 12px; background: #3a4150; color: #9aa3ad; flex: 0 0 auto; }
   .s-dot.ok { background: #2e9e44; color: #fff; }
-  .subview { display: none; }
-  .subview.on { display: block; }
 </style>
 </head>
 <body>
@@ -241,7 +239,7 @@
 
     <div class="card" id="setup-card">
       <div class="card-title">开始使用 · 两步接好</div>
-      <div class="card-desc">接好之后：QQ 里发的图片和视频会被自动看一眼，描述交给你选的地方。下面第 ③ 步当场验证。</div>
+      <div class="card-desc">接好之后：QQ 里的图片和视频自动被看一眼，描述交给你选的地方。</div>
       <div class="setup-step">
         <div class="s-head"><span class="s-dot" id="s1-dot">1</span><b>填模型 key</b><span class="hint" id="s1-state"></span></div>
         <div class="row">
@@ -273,7 +271,7 @@
 
     <div class="card">
       <div class="card-title" id="test-title">③ 试一张图 —— 接好后在这里验证</div>
-      <div class="card-desc">粘一个图链，当场让眼睛看一眼。只描述：不进输出去向、不进账本、不留档 —— 纯验证。</div>
+      <div class="card-desc">只描述不保存 —— 纯验证接通没通。</div>
       <div class="row">
         <input type="text" id="test-url" placeholder="https://…jpg" style="flex:1;min-width:240px">
         <button class="btn primary" id="test-go">看一眼</button>
@@ -292,7 +290,7 @@
 
   <!-- ══════ 留档 ══════ -->
     <div class="view" id="view-archive">
-    <div class="hint" style="margin:0 0 14px">这里翻「历史」：<b>图片 / 视频</b> = 留档的原件 + 分析（存在 <span id="arch-root"></span>，超额自动删最旧，上限在「设置」页改）；最底下是 <b>全部记录</b> —— eye.db 的全量流水账，换输出去向也不丢。</div>
+    <div class="hint" style="margin:0 0 16px">图片 / 视频 = 原件 + 分析（存 <span id="arch-root"></span>，超额删最旧，上限在「设置」页改）；最底下是全部流水账。</div>
     <div class="row" style="margin-bottom:16px">
       <button class="btn" id="arch-refresh">刷新</button>
     </div>
@@ -320,15 +318,14 @@
     <div class="sec-title" style="margin-top:2px">模型接入</div>
     <div class="card key-card">
       <div class="card-title">视觉模型</div>
-      <div class="card-desc">接口地址 + 模型名必填；apiKey 选填 —— 空 = 不带鉴权头，本地/免费接口直接用（参照 DeepSeek 的接法：token 空 = 不带鉴权头）。</div>
+      <div class="card-desc">地址 + 模型必填，key 选填（要鉴权的接口才填）。多加几条免费通道 = 并发加速。</div>
       <div class="form">
-        <div class="full hint">每条通道 = 一个免费模型 = 一条独立限速。多个通道并发分图 —— 3 通道 ≈ 3 倍速，还摊薄单家限速。key 申请地址在每行选好模型后显示。</div>
         <div id="ch-list" class="full" style="display:grid;gap:10px"></div>
         <div class="full"><button class="btn" id="ch-add" type="button">＋ 添加通道（最多 4 条）</button></div>
         <div class="save-row">
           <button class="btn gold" id="access-save">保存接入</button>
           <span class="key-state" id="key-state"></span>
-          <span class="hint">接入 = 登记模型地址和凭据；key 打码显示（只留尾四位），保存后即刻生效。</span>
+          <span class="hint">key 打码保存（只留尾四位），即刻生效。</span>
         </div>
       </div>
     </div>
@@ -336,7 +333,7 @@
     <div class="sec-title" style="margin-top:24px">照片调节</div>
     <div class="card">
       <div class="card-title">节奏与开关</div>
-      <div class="card-desc">整体看多少、多快。上限都按「媒体」数 —— 一张图和一段视频都算一个。</div>
+      <div class="card-desc">看多少、多快 —— 上限都按媒体数（一张图和一段视频都算一个）。</div>
       <div class="form">
         <label>总开关</label>
         <select id="c-enabled"><option value="true">开</option><option value="false">关</option></select>
@@ -347,17 +344,17 @@
 
     <div class="card">
       <div class="card-title">照片 · 大小与留档</div>
-      <div class="card-desc">图片的读取限制和留档。留档 = 原图 + 分析存进 data\media\，超额自动删最旧（eye.db 的账不受影响）。试看入口在「功能」页。</div>
+      <div class="card-desc">图片大小上限；留档 = 原图 + 分析存进 data\media\，超额自动删最旧。</div>
       <div class="form">
         <label>大小上限 MB</label><input type="text" id="p-maxmb" placeholder="默认 8">
         <label>图片留档</label><input type="text" id="c-retainImages" placeholder="默认 50 份（0 = 不留）">
       </div>
     </div>
     <div class="sec-title" style="margin-top:24px">视频调节</div>
-    <div class="hint" style="margin:0 0 14px">总开关和日限在上面「照片调节」；下面是视频自己的参数。</div>
+    <div class="hint" style="margin:0 0 14px">总开关和日限在上面「照片调节」。</div>
     <div class="card">
       <div class="card-title">视频 · 抽帧（画面）</div>
-      <div class="card-desc">视频来了先抽帧、逐帧看，描述合并成一条记忆。需要本机有 ffmpeg —— <span id="v-ffmpeg-state" class="hint">探测中…</span></div>
+      <div class="card-desc">先抽帧、逐帧看，合并成一条描述 —— <span id="v-ffmpeg-state" class="hint">探测中…</span></div>
       <div class="form">
         <label>视频开关</label>
         <select id="v-enabled"><option value="true">开</option><option value="false">关（只看图）</option></select>
@@ -369,12 +366,11 @@
         <label>大小上限 MB</label><input type="text" id="v-maxmb" placeholder="64">
         <label>截图留档</label><input type="text" id="v-retainFrames" placeholder="默认 10 份（0 = 不留）">
       </div>
-      <div class="card-desc" style="margin-top:8px">留档 = 最近 N 段视频的抽帧和分析存进 data\media\videos\，超额删最旧。</div>
     </div>
 
     <div class="card">
       <div class="card-title">视频 · 声音转文字</div>
-      <div class="card-desc">把视频里的人说话转成文字，拼进描述（可选；没配就是默片）。OpenAI 兼容 /audio/transcriptions —— 免费 0 成本路线：Groq 免费档（<a href="https://console.groq.com" target="_blank" style="color:var(--eye)">console.groq.com</a>，地址填 https://api.groq.com/openai/v1）或本地 whisper.cpp / faster-whisper server。前提：本机有 ffmpeg。</div>
+      <div class="card-desc">把视频里的人声转成文字拼进描述（可选）。推荐 Groq 免费档 —— console.groq.com 注册拿 key，地址填 https://api.groq.com/openai/v1。</div>
       <div class="form">
         <label>声音转文字</label>
         <label>快捷选择</label><select id="a-pick"></select>
@@ -390,7 +386,7 @@
     <div class="sec-title" style="margin-top:24px">输出去向</div>
     <div class="card">
       <div class="card-title">存储位置</div>
-      <div class="card-desc">vision.json（配置）和 eye.db（审计账本）存这里。改了会<b>自动迁移</b>过去（目标已有账本会拒绝，防覆盖）；qq-bridge 那边不用改任何东西。</div>
+      <div class="card-desc">配置和账本存这里；改了自动迁移，桥接侧不用动。</div>
       <div class="form">
         <label>数据目录</label>
         <div class="row" style="flex-wrap:nowrap">
@@ -403,7 +399,7 @@
 
     <div class="card">
       <div class="card-title">输出去向</div>
-      <div class="card-desc">看图之后的描述交给谁。可多选、可叠加；某个输出挂了只记它自己的错。</div>
+      <div class="card-desc">描述交给谁 —— 可多选、可叠加，谁挂了只记谁的错。</div>
       <div class="form">
         <div class="out-block">
           <div class="out-head"><input type="checkbox" id="o-ringmind-on"><b>记忆库（Ringmind 形态，如环形的心）</b><span class="hint">描述变成一条记忆进圈；圈不填 = 由库自己定默认</span></div>
