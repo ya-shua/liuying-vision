@@ -273,7 +273,7 @@
       <div class="setup-step">
         <div class="s-head"><span class="s-dot" id="s1-dot">1</span><b>填模型 key</b><span class="hint" id="s1-state"></span></div>
         <div class="row">
-          <input type="text" id="su-key" placeholder="粘贴 key（默认用 GLM-4V-Flash，免费申请：open.bigmodel.cn）" style="flex:1;min-width:240px">
+          <input type="text" id="su-key" placeholder="粘贴 key —— 免费 = 不要钱，但要去 open.bigmodel.cn 注册账号拿（手机号，1 分钟）" style="flex:1;min-width:240px">
           <button class="btn gold" id="su-save">保存接入</button>
         </div>
       </div>
@@ -349,7 +349,7 @@
 <div class="sec-title" style="margin-top:2px">模型接入</div>
     <div class="card key-card">
       <div class="card-title">视觉模型</div>
-      <div class="card-desc">地址 + 模型必填，key 选填（要鉴权的接口才填）。多加几条免费通道 = 并发加速。</div>
+      <div class="card-desc">地址 + 模型必填；免费模型也要注册账号拿 key（选好模型后这里会显示申请地址）。多加几条免费通道 = 并发加速。</div>
       <div class="form">
         <div id="ch-list" class="full" style="display:grid;gap:10px"></div>
         <div class="full"><button class="btn" id="ch-add" type="button">＋ 添加通道（最多 4 条）</button></div>
@@ -405,14 +405,14 @@
 
     <div class="card">
       <div class="card-title">视频 · 声音转文字</div>
-      <div class="card-desc">把视频里的人声转成文字拼进描述（可选）。推荐 Groq 免费档 —— console.groq.com 注册拿 key，地址填 https://api.groq.com/openai/v1。</div>
+      <div class="card-desc">把视频里的人声转成文字拼进描述（可选，没配 = 只看画面听不到）。免费路线 = Groq：每天免费转 2000 条、不要钱，但<b>必须注册账号拿 key</b>（console.groq.com，邮箱或 Google 登录，1 分钟）。不想注册 → 本地 whisper（免 key，要装软件）。没 key 时视频照常看，只是听不到。</div>
       <div class="form">
         <label>声音转文字</label>
         <label>快捷选择</label><select id="a-pick"></select>
         <select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
         <label>语音接口</label><input type="text" id="a-baseUrl" placeholder="https://api.groq.com/openai/v1 或本地服务地址">
         <label>语音模型</label><input type="text" id="a-model" placeholder="whisper-large-v3">
-        <label>语音 key 选填</label><input type="text" id="a-apiKey" placeholder="免密服务留空">
+        <label>语音 key（免费也要注册拿）</label><input type="text" id="a-apiKey" placeholder="粘 Groq 的 key —— console.groq.com 注册就有">
         <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
         <div class="full hint" id="a-hint"></div>
       </div>
@@ -716,7 +716,13 @@ function renderCheck(cfg, r, outs) {
     v: r.ffmpeg ? '已检测到，视频可抽帧' : (cfg.video?.enabled !== false ? '没装 —— 视频会被跳过' : '没装，但视频开关是关的'),
   });
 
-  // 5. 记忆库（异步补）
+  // 5. 声音转文字 —— 开了没 key 是静默失败，必须在这里说出来
+  if (!cfg.asr?.enabled) items.push({ s: 'warn', k: '声音转文字', v: '没开 —— 视频只看画面听不到人说话（设置 → 视频调节里开）' });
+  else if (!cfg.asr.baseUrl) items.push({ s: 'warn', k: '声音转文字', v: '开了但没填语音接口地址' });
+  else if (!(cfg.asr.apiKeySet || cfg.asr.apiKey)) items.push({ s: 'warn', k: '声音转文字', v: '开了但没 key —— 转写会静默失败；免费也要注册拿 key（Groq: console.groq.com）' });
+  else items.push({ s: 'ok', k: '声音转文字', v: '已配 key，视频会带声音内容' });
+
+  // 6. 记忆库（异步补）
   const usesRing = outs.some((o) => o.type === 'ringmind');
   items.push({ s: 'warn', k: '记忆库', v: '检测中…' });
 
@@ -960,11 +966,12 @@ async function discoverRing() {
     const r = await fetch('/api/models').then((x) => x.json()).catch(() => null);
     ASR_CACHE = r?.asr ?? [];
   }
-  function syncAsrPick(cfg) {
+  async function syncAsrPick(cfg) {
+    await ensureAsrCatalog(); // 之前这函数从没被调用 —— 快捷选择永远只有"自定义"，新用户没法快速选 Groq
     const pick = $('a-pick');
     if (!pick.options.length) {
       pick.innerHTML = ASR_CACHE.map((m) =>
-        `<option value="${esc(m.baseUrl + '|' + m.id)}">${esc(m.vendor)} · ${esc(m.label)} · ${m.free ? '免费' : '收费'} · 延迟${esc(m.latency)}</option>`
+        `<option value="${esc(m.baseUrl + '|' + m.id)}">${esc(m.vendor)} · ${esc(m.label)} · ${m.noKey ? '免费（免 key · 本机）' : m.free ? '免费（要注册拿 key）' : '收费'} · 延迟${esc(m.latency)}</option>`
       ).join('') + '<option value="__custom">自定义（手填地址和模型）</option>';
       pick.addEventListener('change', () => {
         const v = pick.value;

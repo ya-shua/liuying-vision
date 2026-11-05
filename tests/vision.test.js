@@ -18,6 +18,15 @@ import { join } from "node:path";
 
 import { extractImageUrls, stripCq } from "../src/cq.mjs";
 import { describeImage } from "../src/describe.mjs";
+
+test("describeImage：模型 401 报人话（key 没填或不对 + 去哪拿）", async () => {
+  const fake = async () => ({ ok: false, status: 401, text: async () => '{"error":{"code":"1001","message":"Header中未收到Authorization参数"}}' });
+  await assert.rejects(
+    describeImage({ baseUrl: "https://vision.test/v4", model: "t", apiKey: "", imageBase64: "aa", fetchImpl: fake }),
+    /key 没填或不对.*open\.bigmodel\.cn/s,
+    "401 要告诉用户去哪申请 key",
+  );
+});
 import { openEyeStore } from "../src/store.mjs";
 import { visionNote, defaultVisionConfig, loadVisionConfig } from "../src/ring-vision.mjs";
 import * as ringmindAdapter from "../src/adapters/ringmind.mjs";

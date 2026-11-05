@@ -93,7 +93,10 @@ export async function transcribeAudio(p) {
   }
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`语音转文字 ${res.status}：${body.slice(0, 120)}`);
+    const human = res.status === 401 || res.status === 403
+      ? `语音转文字 ${res.status} —— key 没填或不对。Groq 免费但要在 console.groq.com 注册账号拿 key（原始返回：${body.slice(0, 100)}）`
+      : `语音转文字 ${res.status}：${body.slice(0, 120)}`;
+    throw new Error(human);
   }
   const j = await res.json().catch(() => null);
   const text = String(j?.text ?? '').trim();

@@ -33,6 +33,16 @@ function lenientJson(text) {
   }
 }
 
+/** 模型报错翻译成人话：新用户看到 401 一串 JSON 是不知道该干嘛的 */
+function friendlyModelError(status, body) {
+  const raw = `（原始返回：${body}）`;
+  if (status === 401) return `视觉模型 401 —— key 没填或不对。免费模型也要注册账号拿 key（默认 GLM-4V-Flash 在 open.bigmodel.cn 免费申请）${raw}`;
+  if (status === 403) return `视觉模型 403 —— 这个 key 没有权限用该模型（换模型或去服务商后台看权限）${raw}`;
+  if (status === 429) return `视觉模型 429 —— 触发限流了（免费档有每分钟上限；可以多加一条免费通道分摊）${raw}`;
+  if (status === 404) return `视觉模型 404 —— 接口地址或模型名不对（检查 baseUrl 结尾别带 /chat/completions）${raw}`;
+  return `视觉模型 ${status}：${body}`;
+}
+
 /**
  * 看一张图。
  * @param {object} p
@@ -97,7 +107,7 @@ export async function describeImage(p) {
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`视觉模型 ${res.status}：${body.slice(0, 160)}`);
+    throw new Error(friendlyModelError(res.status, body.slice(0, 160)));
   }
 
   const body = await res.json().catch(() => null);

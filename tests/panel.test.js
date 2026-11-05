@@ -125,6 +125,24 @@ test("面板：没配 key 也能试看（免密接口，key 是选填的）", as
   await s.close();
 });
 
+test("试看：不注入 visionFetchImpl 也能用（生产曾经必炸 fetchImpl is not a function）", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rv-prod-preview-"));
+  const s = await createPanelServer({ dataDir, port: 0 }); // 故意不传 visionFetchImpl —— 生产启动方式
+  const r = await j(await fetch(s.url + "/api/test", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ url: "http://127.0.0.1:9/x.jpg" }), // 必被拒的端口 → 走网络失败分支
+  }));
+  assert.equal(r.ok, false);
+  assert.doesNotMatch(r.error, /fetchImpl/, "不能再把内部变量名暴露给用户");
+  assert.match(r.error, /图片下载失败|图片下载/, "报错要人话");
+  await s.close();
+});
+
+test("试看：模型 401 的报错由 describe 层翻译成人话（见 vision.test.js 401 用例）", () => {
+  // 面板层用注入的假 fetch，永远不会有真 401 —— 该路径的回归测试放 vision.test.js
+  assert.ok(true);
+});
+
 test("存储位置：迁移配置和账本到新目录，面板立即可用", async () => {
   const A = mkdtempSync(join(tmpdir(), "rv-dd-a-"));
   const B = mkdtempSync(join(tmpdir(), "rv-dd-b-"));

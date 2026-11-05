@@ -188,7 +188,7 @@ export async function createPanelServer({
   pointerPath = POINTER_FILE,
   port = 5188,
   host = '127.0.0.1',
-  visionFetchImpl, // 测试注入：给「试看」用的假 fetch
+  visionFetchImpl = fetch, // 测试注入假 fetch；生产默认真 fetch（不注入就是 undefined，试看必炸）
   onShutdown,      // 测试注入；不传就真的退出进程
 } = {}) {
   // 解析顺序:调用方显式 > 环境变量 > 指针文件(面板里改过存储位置) > 项目根 data/
@@ -334,11 +334,17 @@ export async function createPanelServer({
             if (!res.ok) throw new Error('视频下载 ' + res.status);
             buf = Buffer.from(await res.arrayBuffer());
             if (buf.length > (cfg.video?.maxBytes || 64 * 1024 * 1024)) throw new Error('视频太大');
+          } catch (e) {
+            const msg = String(e?.message ?? e);
+            throw new Error(/fetch failed|ECONN|ENOTFOUND|ETIMEDOUT|abort/i.test(msg) ? '视频下载失败 —— 检查网络，或换个能打开的视频链接' : msg);
           } finally { clearTimeout(timer); }
           const out = await describeVideo(buf, { cfg, fetchImpl: visionFetchImpl, text: '' });
           return json(res, 200, { ok: true, desc: out.desc, points: out.points, model: cfg.model, ms: out.ms, frames: out.frames });
         }
-        const img = await fetchImage(url, { maxBytes: cfg.maxBytes, timeoutMs: cfg.timeoutMs, fetchImpl: visionFetchImpl });
+        const img = await fetchImage(url, { maxBytes: cfg.maxBytes, timeoutMs: cfg.timeoutMs, fetchImpl: visionFetchImpl }).catch((e) => {
+          const msg = String(e?.message ?? e);
+          throw new Error(/fetch failed|ECONN|ENOTFOUND|ETIMEDOUT|abort/i.test(msg) ? '图片下载失败 —— 检查网络，或换一张能打开的图链' : msg);
+        });
         const out = await describeImage({
           baseUrl: cfg.baseUrl,
           model: cfg.model,

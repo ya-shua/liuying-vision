@@ -100,26 +100,30 @@ export function findModel(id) {
 export const ASR_MODELS = [
   {
     tier: '免费',
+    free: true, // 之前没有 free 字段，下拉全显示成"收费"
     id: 'whisper-large-v3',
     label: 'Whisper large-v3',
     vendor: 'Groq',
     baseUrl: 'https://api.groq.com/openai/v1',
     latency: '低',
     keyUrl: 'https://console.groq.com',
-    note: '免费档额度大方，速度快',
+    note: '每天免费转 2000 条，不要钱；要注册账号拿 key',
   },
   {
     tier: '免费',
+    free: true,
     id: 'FunAudioLLM/SenseVoiceSmall',
     label: 'SenseVoiceSmall',
     vendor: '硅基流动',
     baseUrl: 'https://api.siliconflow.cn/v1',
     latency: '低',
     keyUrl: 'https://cloud.siliconflow.cn',
-    note: '免费；中文识别好，自带标点',
+    note: '免费；中文识别好，自带标点；要注册账号拿 key',
   },
   {
     tier: '免费',
+    free: true,
+    noKey: true, // 本机服务，完全不用 key
     id: 'whisper-large-v3',
     label: 'Whisper server（本机）',
     vendor: '本地',
