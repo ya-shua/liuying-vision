@@ -218,6 +218,8 @@
   .out-block { border: 1px solid var(--border-soft); border-radius: 10px; padding: 10px 12px; margin: 2px 0; }
   .out-block .out-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
   .out-block .out-head b { font-size: 12.5px; }
+  .out-del { color: var(--faint); font-size: 11.5px; cursor: pointer; }
+  .out-del:hover { color: var(--bad); }
   .out-fields { display: grid; grid-template-columns: 90px 1fr; gap: 7px 10px; align-items: center; }
   .out-fields input, .out-fields select { font-size: 12px; padding: 5px 9px; }
   .out-fields label { font-size: 11.5px; }
@@ -428,6 +430,7 @@
         <label>数据目录</label>
         <div class="row" style="flex-wrap:nowrap">
           <input type="text" id="d-dir" placeholder="D:/某目录/留影数据" style="flex:1">
+          <button class="btn" data-fspick="d-dir">选择…</button>
           <button class="btn gold" id="d-save">迁移并切换</button>
         </div>
         <div class="full hint" id="d-state">改完立即生效，不用重启。</div>
@@ -437,13 +440,26 @@
     <div class="card">
       <div class="card-title">输出去向</div>
       <div class="card-desc">描述交给谁 —— 可多选、可叠加，谁挂了只记谁的错。</div>
-      <div class="form">
-        <div class="out-block">
-          <div class="out-head"><input type="checkbox" id="o-ringmind-on"><b>记忆库（Ringmind 形态，如环形的心）</b><span class="hint">描述变成一条记忆进圈；圈不填 = 由库自己定默认</span></div>
+      <div class="row" style="margin-bottom:10px">
+        <select id="out-add-type">
+          <option value="ringmind">记忆库</option>
+          <option value="sqlite">SQLite 数据库</option>
+          <option value="jsonl">JSONL 文件</option>
+          <option value="markdown">Markdown 笔记</option>
+          <option value="webhook">Webhook</option>
+          <option value="custom">自定义脚本</option>
+        </select>
+        <button class="btn" id="out-add">＋ 添加去向</button>
+        <span class="hint">不需要了在它的标题右边「删掉」</span>
+      </div>
+      <div class="form" id="out-list">
+        <div class="out-block" data-type="ringmind" style="display:none">
+          <div class="out-head"><input type="checkbox" id="o-ringmind-on" checked><b>记忆库</b><span class="hint">描述变成一条记忆进圈；圈不填 = 由库自己定默认</span><span class="grow"></span><span class="out-del" data-del="ringmind">删掉</span></div>
           <div class="out-fields">
             <label>库文件</label>
             <div class="row" style="flex-wrap:nowrap">
               <input type="text" id="o-ringmind-db" placeholder="要写进哪个库文件（必填）" style="flex:1">
+              <button class="btn" data-fspick="o-ringmind-db" data-def="memory.db">选择…</button>
               <button class="btn" id="rm-discover" title="从环形的心自己的记录（data-location.json）里找库位置，自动填">自动连接</button>
             </div>
             <label>库名</label><input type="text" id="o-ringmind-name" placeholder="选填">
@@ -461,37 +477,41 @@
           </div>
         </div>
 
-        <div class="out-block">
-          <div class="out-head"><input type="checkbox" id="o-sqlite-on"><b>SQLite 数据库（通用）</b><span class="hint">写进任何 SQLite 库的表；表不存在自动建</span></div>
+        <div class="out-block" data-type="sqlite" style="display:none">
+          <div class="out-head"><input type="checkbox" id="o-sqlite-on" checked><b>SQLite 数据库</b><span class="hint">写进任何 SQLite 库的表；表不存在自动建</span><span class="grow"></span><span class="out-del" data-del="sqlite">删掉</span></div>
           <div class="out-fields">
-            <label>库文件</label><input type="text" id="o-sqlite-db" placeholder="要写进哪个库文件（必填）">
+            <label>库文件</label>
+            <div class="row" style="flex-wrap:nowrap">
+              <input type="text" id="o-sqlite-db" placeholder="要写进哪个库文件（必填）" style="flex:1">
+              <button class="btn" data-fspick="o-sqlite-db" data-def="vision.db">选择…</button>
+            </div>
             <label>表名</label><input type="text" id="o-sqlite-table" placeholder="vision_log（默认）">
           </div>
         </div>
 
-        <div class="out-block">
-          <div class="out-head"><input type="checkbox" id="o-jsonl-on"><b>JSONL 文件</b><span class="hint">每看一张追加一行，任何系统都能读</span></div>
+        <div class="out-block" data-type="jsonl" style="display:none">
+          <div class="out-head"><input type="checkbox" id="o-jsonl-on" checked><b>JSONL 文件</b><span class="hint">每看一张追加一行，任何系统都能读</span><span class="grow"></span><span class="out-del" data-del="jsonl">删掉</span></div>
           <div class="out-fields">
             <label>文件路径</label><input type="text" id="o-jsonl-file" placeholder="D:/…/vision-log.jsonl">
           </div>
         </div>
 
-        <div class="out-block">
-          <div class="out-head"><input type="checkbox" id="o-md-on"><b>Markdown 笔记</b><span class="hint">每看一个媒体追加一节，Obsidian 等直接打开</span></div>
+        <div class="out-block" data-type="markdown" style="display:none">
+          <div class="out-head"><input type="checkbox" id="o-md-on" checked><b>Markdown 笔记</b><span class="hint">每看一个媒体追加一节，Obsidian 等直接打开</span><span class="grow"></span><span class="out-del" data-del="markdown">删掉</span></div>
           <div class="out-fields">
             <label>文件路径</label><input type="text" id="o-md-file" placeholder="D:/…/notes/留影.md">
           </div>
         </div>
 
-        <div class="out-block">
-          <div class="out-head"><input type="checkbox" id="o-webhook-on"><b>Webhook</b><span class="hint">每看一张 POST 一份 JSON 到你的地址</span></div>
+        <div class="out-block" data-type="webhook" style="display:none">
+          <div class="out-head"><input type="checkbox" id="o-webhook-on" checked><b>Webhook</b><span class="hint">每看一张 POST 一份 JSON 到你的地址</span><span class="grow"></span><span class="out-del" data-del="webhook">删掉</span></div>
           <div class="out-fields">
             <label>地址</label><input type="text" id="o-webhook-url" placeholder="http://…/hook">
           </div>
         </div>
 
-        <div class="out-block">
-          <div class="out-head"><input type="checkbox" id="o-custom-on"><b>自定义脚本</b><span class="hint">指向你自己的 .mjs（导出 deliver(item, cfg)），任何系统都能接</span></div>
+        <div class="out-block" data-type="custom" style="display:none">
+          <div class="out-head"><input type="checkbox" id="o-custom-on" checked><b>自定义脚本</b><span class="hint">指向你自己的 .mjs（导出 deliver(item, cfg)），任何系统都能接</span><span class="grow"></span><span class="out-del" data-del="custom">删掉</span></div>
           <div class="out-fields">
             <label>脚本路径</label><input type="text" id="o-custom-file" placeholder="D:/…/my-adapter.mjs">
           </div>
@@ -508,6 +528,32 @@
   </div><!-- /main -->
 </div><!-- /layout -->
 
+<div id="fs-pick" style="display:none;position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.55);align-items:center;justify-content:center">
+  <div style="width:430px;max-width:92vw;background:#0e1219;border:1px solid var(--border);border-radius:14px;padding:16px 18px;box-shadow:0 18px 50px rgba(0,0,0,.6)">
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:8px">选择文件夹</div>
+    <div class="hint" style="margin-bottom:8px">当前：<span id="fs-cur"></span></div>
+    <div class="row" style="margin-bottom:8px;font-size:12px">
+      <span class="hint" data-d="C:\\" style="cursor:pointer">C:</span> ·
+      <span class="hint" data-d="D:\\" style="cursor:pointer">D:</span> ·
+      <span class="hint" data-d="__home" style="cursor:pointer">用户目录</span> ·
+      <span class="hint" data-d="__desk" style="cursor:pointer">桌面</span> ·
+      <span class="hint" data-d="__up" style="cursor:pointer">上一级</span>
+    </div>
+    <div id="fs-list" style="max-height:250px;overflow:auto;border:1px solid var(--border-soft);border-radius:9px;padding:6px;min-height:120px"></div>
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="fs-manual" placeholder="直接粘贴文件夹路径" style="flex:1;min-width:150px">
+      <button class="btn" id="fs-go">转到</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="fs-newname" placeholder="新建文件夹名" style="flex:1;min-width:130px">
+      <button class="btn" id="fs-mk">新建</button>
+      <span class="grow"></span>
+      <button class="btn" id="fs-cancel">取消</button>
+      <button class="btn gold" id="fs-ok">用这个文件夹</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -515,7 +561,7 @@
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clock = (ts) => ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false }) : '—';
-const OUT_TYPES = { ringmind: '环形的心', sqlite: 'SQLite', jsonl: 'JSONL', markdown: 'Markdown', webhook: 'Webhook', custom: '自定义' };
+const OUT_TYPES = { ringmind: '记忆库', sqlite: 'SQLite', jsonl: 'JSONL', markdown: 'Markdown', webhook: 'Webhook', custom: '自定义' };
 let currentCfg = { outputs: [] };
 
 /* 轻提示 */
@@ -996,6 +1042,11 @@ function fillConfig(cfg) {
   $('c-perMessage').value = cfg.perMessage;
   const find = (type) => (cfg.outputs ?? []).find((o) => o.type === type);
   const rm = find('ringmind');
+  // 只显示已配置的模块；没配的不摆出来（要加用上面的「添加去向」）
+  for (const t of ['ringmind', 'sqlite', 'jsonl', 'markdown', 'webhook', 'custom']) {
+    const f2 = find(t);
+    outShow(t, !!f2);
+  }
   $('o-ringmind-on').checked = !!(rm && rm.enabled !== false);
   $('o-ringmind-db').value = rm?.dbPath ?? '';
   if (!rm && !ringDiscovered && !$('o-ringmind-db').value) {
@@ -1038,6 +1089,93 @@ function fillConfig(cfg) {
   if ($('d-dir') && document.activeElement !== $('d-dir')) $('d-dir').value = cfg.dataDir || '';
   syncAsrPick(cfg);
 }
+
+/* 输出去向：选类型添加，不需要的删掉 */
+const OUT_ALL = ['ringmind', 'sqlite', 'jsonl', 'markdown', 'webhook', 'custom'];
+function outBlock(type) { return document.querySelector('#out-list .out-block[data-type="' + type + '"]'); }
+function outShow(type, on) {
+  const b = outBlock(type);
+  if (!b) return;
+  b.style.display = on ? '' : 'none';
+  const cb = b.querySelector('input[type="checkbox"]');
+  if (cb) cb.checked = !!on;
+}
+$('out-add').addEventListener('click', () => {
+  const t = $('out-add-type').value;
+  if (!t) return;
+  if (outBlock(t).style.display !== 'none') { toast('这个去向已经加了', ''); return; }
+  outShow(t, true);
+  $('out-add-type').value = '';
+});
+document.querySelectorAll('.out-del').forEach((d) => d.addEventListener('click', () => outShow(d.dataset.del, false)));
+
+/* 文件夹选择弹层：本地目录浏览，选完回填 */
+let fsTarget = null, fsDefFile = '', fsDir = '';
+function fsRender(dir) {
+  fsDir = dir;
+  fetch('/api/fs?dir=' + encodeURIComponent(dir)).then((x) => x.json()).then((r) => {
+    if (!r.ok) { $('fs-cur').textContent = r.error || '打不开这个目录'; return; }
+    fsDir = r.dir;
+    $('fs-cur').textContent = r.dir;
+    const list = $('fs-list');
+    list.innerHTML = '';
+    if (r.parent) {
+      const up = document.createElement('div');
+      up.textContent = '↩ 上一级';
+      up.style.cssText = 'cursor:pointer;padding:4px 8px;color:var(--dim);border-radius:6px';
+      up.addEventListener('click', () => fsRender(r.parent));
+      list.appendChild(up);
+    }
+    if (!r.dirs.length) {
+      list.innerHTML = '<div class="hint" style="padding:6px 8px">(没有子文件夹 —— 直接用当前这个)</div>';
+      return;
+    }
+    for (const name of r.dirs) {
+      const item = document.createElement('div');
+      item.textContent = '📁 ' + name;
+      item.style.cssText = 'cursor:pointer;padding:4px 8px;border-radius:6px';
+      item.addEventListener('mouseenter', () => (item.style.background = 'var(--glass-hover)'));
+      item.addEventListener('mouseleave', () => (item.style.background = ''));
+      item.addEventListener('click', () => fsRender(r.dir.replace(/\+$/, '') + '\\' + name));
+      list.appendChild(item);
+    }
+  }).catch(() => { $('fs-cur').textContent = '网络错误'; });
+}
+function fsOpen(inputId, defFile) {
+  fsTarget = inputId;
+  fsDefFile = defFile || '';
+  const cur = $(fsTarget).value.trim();
+  $('fs-pick').style.display = 'flex';
+  fsRender(cur ? cur.replace(/[\\/][^\\/]+$/, '') : '');
+}
+document.querySelectorAll('[data-fspick]').forEach((b) => b.addEventListener('click', () => fsOpen(b.dataset.fspick, b.dataset.def)));
+$('fs-cancel').addEventListener('click', () => ( $('fs-pick').style.display = 'none' ));
+$('fs-ok').addEventListener('click', () => {
+  let v = fsDir.replace(/\\+$/, '');
+  if (fsDefFile) v += '/' + fsDefFile;
+  $(fsTarget).value = v;
+  $('fs-pick').style.display = 'none';
+});
+$('fs-go').addEventListener('click', () => fsRender($('fs-manual').value.trim()));
+$('fs-mk').addEventListener('click', async () => {
+  const name = $('fs-newname').value.trim();
+  if (!name) return;
+  const r = await fetch('/api/fs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dir: fsDir.replace(/\\+$/, '') + '\\' + name }) }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
+  if (r.ok) { $('fs-newname').value = ''; fsRender(r.dir); } else toast('建失败：' + (r.error || '?'), 'bad');
+});
+document.querySelectorAll('#fs-pick [data-d]').forEach((a) => a.addEventListener('click', async () => {
+  const d = a.dataset.d;
+  if (d === '__home') return fsRender('');
+  if (d === '__desk') {
+    const r = await fetch('/api/fs?dir=').then((x) => x.json()).catch(() => null);
+    return fsRender(r?.dir ? r.dir + '\\Desktop' : '');
+  }
+  if (d === '__up') {
+    const r = await fetch('/api/fs?dir=' + encodeURIComponent(fsDir)).then((x) => x.json()).catch(() => null);
+    return fsRender(r?.parent || fsDir);
+  }
+  fsRender(d);
+}));
 
 const KNOWN_OUT = ['ringmind', 'sqlite', 'jsonl', 'markdown', 'webhook', 'custom'];
 function collectOutputs() {

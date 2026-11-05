@@ -316,6 +316,31 @@ export async function createPanelServer({
         return res.end(readFileSync(abs));
       }
 
+      // 文件夹浏览（给"选择文件夹"弹层用）：列出某目录下的子目录
+      if (p === '/api/fs' && req.method === 'GET') {
+        let dir = String(u.searchParams.get('dir') || '').trim() || (process.env.USERPROFILE || 'C:\\');
+        dir = dir.replace(/\//g, '\\').replace(/\\+$/, '');
+        try {
+          if (!existsSync(dir)) return json(res, 200, { ok: false, error: '目录不存在', dir });
+          const entries = readdirSync(dir, { withFileTypes: true });
+          const dirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => e.name)
+            .sort((a, b) => a.localeCompare(b, 'zh'));
+          const parent = /^[A-Za-z]:\\?$/.test(dir) ? null : dirname(dir);
+          return json(res, 200, { ok: true, dir, parent, dirs });
+        } catch (e) {
+          return json(res, 200, { ok: false, error: String(e?.message ?? e), dir });
+        }
+      }
+
+      // 新建文件夹（建库文件/迁移目标之前先建目录）
+      if (p === '/api/fs' && req.method === 'POST') {
+        const body = await readBody(req);
+        const dir = String(body.dir ?? '').trim().replace(/\//g, '\\');
+        if (!/^[A-Za-z]:[\\/]/.test(dir)) return json(res, 400, { ok: false, error: '要一个绝对路径' });
+        try { mkdirSync(dir, { recursive: true }); return json(res, 200, { ok: true, dir }); }
+        catch (e) { return json(res, 200, { ok: false, error: String(e?.message ?? e) }); }
+      }
+
       if (p === '/api/test' && req.method === 'POST') {
         const body = await readBody(req);
         const url = String(body.url ?? '').trim();
