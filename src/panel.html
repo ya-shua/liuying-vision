@@ -349,7 +349,7 @@
 <div class="sec-title" style="margin-top:2px">模型接入</div>
     <div class="card key-card">
       <div class="card-title">视觉模型</div>
-      <div class="card-desc">地址 + 模型必填；免费模型也要注册账号拿 key（选好模型后这里会显示申请地址）。多加几条免费通道 = 并发加速。</div>
+      <div class="card-desc">地址 + 模型必填；免费模型也要注册账号拿 key（选好模型后这里会显示申请地址）。多加几条免费通道 = 并发加速。目录外的服务 → 快捷选择拉到最底选「自定义」，任何 OpenAI 兼容接口都能接。</div>
       <div class="form">
         <div id="ch-list" class="full" style="display:grid;gap:10px"></div>
         <div class="full"><button class="btn" id="ch-add" type="button">＋ 添加通道（最多 4 条）</button></div>
@@ -405,7 +405,7 @@
 
     <div class="card">
       <div class="card-title">视频 · 声音转文字</div>
-      <div class="card-desc">把视频里的人声转成文字拼进描述（可选，没配 = 只看画面听不到）。免费路线 = Groq：每天免费转 2000 条、不要钱，但<b>必须注册账号拿 key</b>（console.groq.com，邮箱或 Google 登录，1 分钟）。不想注册 → 本地 whisper（免 key，要装软件）。没 key 时视频照常看，只是听不到。</div>
+      <div class="card-desc">把视频里的人声转成文字拼进描述（可选，没配 = 只看画面听不到）。免费路线 = Groq：每天免费转 2000 条、不要钱，但<b>必须注册账号拿 key</b>（console.groq.com，邮箱或 Google 登录，1 分钟）。不想注册 → 本地 whisper（免 key，要装软件）。别的转写服务 → 快捷选择拉到最底选「自定义」（任何 OpenAI 兼容 /audio/transcriptions 接口）。没 key 时视频照常看，只是听不到。</div>
       <div class="form">
         <label>声音转文字</label>
         <label>快捷选择</label><select id="a-pick"></select>
