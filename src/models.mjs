@@ -108,7 +108,7 @@ export const ASR_MODELS = [
     baseUrl: 'https://api.siliconflow.cn/v1',
     latency: '低',
     keyUrl: 'https://cloud.siliconflow.cn',
-    note: '免费；中文识别好，自带标点；国内直连，注册即可拿 key（推荐首选）',
+    note: '免费；中文识别好，自带标点；国内直连——注册就能用，推荐首选（别的国外服务注册页面打不开）',
   },
   {
     tier: '免费',
@@ -119,7 +119,7 @@ export const ASR_MODELS = [
     baseUrl: 'https://api.groq.com/openai/v1',
     latency: '低',
     keyUrl: 'https://console.groq.com',
-    note: '每天免费转 2000 条；但官网国内可能打不开（需网络环境），能注册就很好用',
+    note: '每天免费 2000 条；注册页面国内打不开，需特殊网络环境才能注册',
   },
   {
     tier: '免费',
