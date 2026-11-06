@@ -1024,6 +1024,28 @@ $('c-save').addEventListener('click', async () => {
   loadStatus();
 });
 
+/* 记忆库自动连接：从环形的心 data-location.json 找库；顺手把存储位置建议到库的同级文件夹 */
+let ringDiscovered = false;
+async function discoverRing() {
+  const r = await fetch('/api/discover-ring').then((x) => x.json()).catch(() => null);
+  const ok = !!(r?.ok && r.dbPath);
+  if (ok) {
+    $('o-ringmind-db').value = r.dbPath;
+    if (r.name) $('o-ringmind-name').value = r.name;
+    const on = $('o-ringmind-on');
+    if (on) on.checked = true;
+    // 存储位置智能跟随：建议放在「库文件夹的同级」—— 留影数据与记忆库并排
+    const parts = String(r.dbPath).split(/[\\/]/).filter(Boolean);
+    if (parts.length >= 3) {
+      const suggest = parts.slice(0, -2).join('/') + '/留影数据';
+      $('d-dir').value = suggest;
+      const ds = $('d-state');
+      if (ds) { ds.textContent = '已定位记忆库 —— 存储位置建议放在同级「留影数据」，点「迁移并切换」即可把留影数据挪过去'; ds.className = 'hint'; }
+    }
+  }
+  return ok;
+}
+
 $('rm-discover').addEventListener('click', async () => {
   const ok = await discoverRing();
   const b = $('rm-discover');
