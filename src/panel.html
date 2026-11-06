@@ -625,6 +625,7 @@ async function loadStatus() {
   const r = await fetch('/api/status').then((x) => x.json());
   const cfg = r.config;
   currentCfg = cfg;
+  const outs = (cfg.outputs ?? []).filter((o) => o.enabled !== false);
   // 新手接入清单：没接好时功能页就是"两步 + 试看"，接好了自动换成仪表盘
 
   // 配置坏了必须说出来，不能让人以为"我的设置凭空消失了"
