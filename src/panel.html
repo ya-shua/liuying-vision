@@ -529,6 +529,8 @@
 
 <script>
 "use strict";
+window.addEventListener("error", (e) => { (window.__bootErrs = window.__bootErrs || []).push(String(e.message).slice(0,200)); });
+window.addEventListener("unhandledrejection", (e) => { (window.__bootErrs = window.__bootErrs || []).push("promise: " + String(e.reason).slice(0,200)); });
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const clock = (ts) => ts ? new Date(ts).toLocaleString('zh-CN', { hour12: false }) : '—';
@@ -624,6 +626,7 @@ async function loadStatus() {
   currentCfg = cfg;
   // 新手接入清单：没接好时功能页就是"两步 + 试看"，接好了自动换成仪表盘
 
+  const outs = (cfg.outputs ?? []).filter((o) => o.enabled !== false);
   // 配置坏了必须说出来，不能让人以为"我的设置凭空消失了"
   const cb = $('config-banner');
   if (cb) {
@@ -666,6 +669,15 @@ function ringName(r) {
   return { core: '圆心', ring1: '一圈', ring2: '二圈', ring3: '三圈', ring4: '闲聊圈', ring5: '模糊圈', recall: '回忆圈' }[r] || r;
 }
 
+
+function outBadge(o) {
+  const name = OUT_TYPES[o.type] || o.type;
+  if (o.ok) {
+    const extra = o.memoryId ? ' · 记忆 ' + esc(String(o.memoryId).slice(0, 10)) : (o.file ? ' · ' + esc(o.file.split(/[\\/]/).pop()) : (o.status ? ' · ' + o.status : ''));
+    return `<span class="out-badge ok">${esc(name)}✓${extra}</span>`;
+  }
+  return `<span class="out-badge bad" title="${esc(o.error || '')}">${esc(name)}✗</span>`;
+}
 
 function renderCheck(cfg, r, outs) {
   const box = $('check-list');
@@ -788,14 +800,14 @@ async function loadSeen() {
 
   function chRowHtml(i, ch, total) {
     const picked = ch ? ch.baseUrl + '|' + ch.model : '__custom';
-    const keyPh = ch?.apiKeySet ? '已配置（…' + esc(ch.apiKeyTail || '') + '），留空 = 不改' : '要鉴权的接口才填；本地/免费接口留空';
+    const keyPh = ch?.apiKeySet ? '已配置（…' + esc(ch.apiKeyTail || '') + '），留空 = 不改' : '免费也要注册拿 key；只有无鉴权本地接口可留空';
     return `<div class="out-block ch-row">
       <div class="out-head"><b>通道 ${i + 1}</b><span class="ch-hint hint"></span>${total > 1 ? '<button class="btn ch-del" type="button">删掉</button>' : ''}</div>
       <div class="out-fields">
         <label>快捷选择</label><select class="ch-pick">${chOptions(picked)}</select>
         <label>接口地址</label><input type="text" class="ch-baseUrl" placeholder="OpenAI 兼容接口地址" value="${esc(ch?.baseUrl ?? '')}">
         <label>模型</label><input type="text" class="ch-model" placeholder="模型 ID" value="${esc(ch?.model ?? '')}">
-        <label>apiKey 选填</label><input type="text" class="ch-apiKey" placeholder="${keyPh}">
+        <label>apiKey</label><input type="text" class="ch-apiKey" placeholder="${keyPh}">
       </div>
     </div>`;
   }
