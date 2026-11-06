@@ -231,6 +231,19 @@
   .s-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
            font-size: 12px; background: #3a4150; color: #9aa3ad; flex: 0 0 auto; }
   .s-dot.ok { background: #2e9e44; color: #fff; }
+    .chart-box { border: 1px solid var(--border-soft); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .chart-legend { display: flex; gap: 14px; margin-bottom: 8px; font-size: 11px; color: var(--dim); flex-wrap: wrap; }
+  .chart-legend span::before { content: '\25A0 '; font-size: 10px; }
+  .chart-legend .lg-img::before { color: #7fb0ff; }
+  .chart-legend .lg-vid::before { color: #ffd479; }
+  .chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 110px; padding: 0 2px; }
+  .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+  .chart-bar-wrap { display: flex; flex-direction: column-reverse; width: 100%; height: 100px; border-radius: 3px 3px 0 0; overflow: hidden; }
+  .bar-img { background: #7fb0ff; width: 100%; }
+  .bar-vid { background: #ffd479; width: 100%; }
+  .chart-day { font-size: 10px; color: var(--faint); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+  .chart-empty { color: var(--faint); font-size: 12px; text-align: center; padding: 20px; }
   .arch-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
   @media (max-width: 980px) { .arch-cols { grid-template-columns: 1fr; } }
 
@@ -275,6 +288,16 @@
     </div>
 
     <div class="hint" style="margin:0 0 16px">图片 / 视频 = 原件 + 分析（存 <span id="arch-root"></span>，超额删最旧，上限在「设置」页改）；最底下是全部流水账。</div>
+
+    <div class="chart-box">
+      <div class="chart-title">近 14 天观看与调用</div>
+      <div class="chart-legend">
+        <span class="lg-img">图片</span>
+        <span class="lg-vid">视频</span>
+      </div>
+      <div class="chart-bars" id="chart-bars"></div>
+      <div class="chart-empty" id="chart-empty" style="display:none">还没有观看记录 —— 接入 key 后，QQ 里发图/发视频就会出现在这里。</div>
+    </div>
     <div class="row" style="margin-bottom:16px">
       <button class="btn" id="arch-refresh">刷新</button>
     </div>
@@ -651,6 +674,33 @@ async function loadArchive() {
     if ($('arch-root')) $('arch-root').textContent = String(archData.root || '').replace(/\//g, '\\');
     renderArchive();
   } catch { /* 拉不到就等下一次刷新 */ }
+}
+
+/* 留档页柱形图：近 14 天观看与调用 */
+async function loadChart() {
+  const bars = document.getElementById('chart-bars');
+  if (!bars) return;
+  const r = await fetch('/api/stats/daily?days=14').then(function(x) { return x.json(); }).catch(function() { return null; });
+  if (!r || !r.ok) return;
+  var days = r.days || [];
+  var empty = document.getElementById('chart-empty');
+  if (empty) empty.style.display = days.length ? 'none' : 'block';
+  if (!days.length) { bars.innerHTML = ''; return; }
+  var maxVal = 1;
+  for (var i = 0; i < days.length; i++) { if (days[i].total > maxVal) maxVal = days[i].total; }
+  var html = '';
+  for (var i = 0; i < days.length; i++) {
+    var d = days[i];
+    var imgH = Math.round((d.images || 0) / maxVal * 100);
+    var vidH = Math.round((d.videos || 0) / maxVal * 100);
+    var day = d.day.slice(5);
+    var title = d.day + ' 图' + d.images + ' 视频' + d.videos;
+    var barHtml = '';
+    if (d.images) barHtml += '<div class="bar-img" style="height:' + imgH + '%"></div>';
+    if (d.videos) barHtml += '<div class="bar-vid" style="height:' + vidH + '%"></div>';
+    html += '<div class="chart-col"><div class="chart-bar-wrap" title="' + title + '">' + barHtml + '</div><div class="chart-day">' + day + '</div></div>';
+  }
+  bars.innerHTML = html;
 }
 $('arch-refresh').addEventListener('click', () => { loadArchive(); loadSeen(); });
 
@@ -1325,6 +1375,7 @@ if (initView) showTab(initView);
 loadStatus();
 loadSeen();
 loadArchive();
+loadChart();
 </script>
 </body>
 </html>

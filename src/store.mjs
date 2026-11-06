@@ -55,6 +55,20 @@ export function openEyeStore(dataDir) {
     usageTotal() {
       return db.prepare('SELECT COALESCE(SUM(tokens),0) AS tokens, COUNT(*) AS n FROM seen').get();
     },
+    /** 按日聚合：最近 N 天每天的图/视频/转写/token 数（柱形图数据源） */
+    dailyStats(days = 14) {
+      const since = Date.now() - days * 86400000;
+      const rows = db.prepare(`
+        SELECT date(created_at / 1000, 'unixepoch', '+8 hours') AS day,
+               COUNT(*) AS total,
+               SUM(CASE WHEN kind = 'video' OR kind = 'gif' THEN 1 ELSE 0 END) AS videos,
+               SUM(CASE WHEN kind = 'image' OR kind IS NULL THEN 1 ELSE 0 END) AS images,
+               COALESCE(SUM(tokens), 0) AS tokens
+        FROM seen WHERE created_at >= ?
+        GROUP BY day ORDER BY day
+      `).all(since);
+      return rows;
+    },
     record({ hash, url, chatKey, model, desc, outputs, createdAt, ms, kind, tokens }) {
       db.prepare(
         'INSERT INTO seen (hash, url, chat_key, model, desc, outputs, created_at, ms, kind, tokens) VALUES (?,?,?,?,?,?,?,?,?,?)'

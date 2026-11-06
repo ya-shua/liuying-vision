@@ -287,6 +287,11 @@ export async function createPanelServer({
         return json(res, 200, { ok: true, models: MODELS, asr: ASR_MODELS });
       }
 
+      if (p === '/api/stats/daily' && req.method === 'GET') {
+        const days = Math.min(30, Number(u.searchParams.get('days')) || 14);
+        return json(res, 200, { ok: true, days: store.dailyStats(days) });
+      }
+
       if (p === '/api/seen' && req.method === 'GET') {
         const limit = Math.min(200, Number(u.searchParams.get('limit')) || 50);
         return json(res, 200, { ok: true, rows: store.recent(limit) });
