@@ -322,17 +322,15 @@
     </div>
 
 
-<div class="card">
-      <div class="card-title">声音转文字</div>
+<div class="sec-title" style="margin-top:2px">声音转文字</div>
+    <div class="card">
+      <div class="card-title">转写模型</div>
       <div class="card-desc">把视频里的人声转成文字拼进描述（可选，没配 = 只看画面听不到）。**推荐：硅基流动（国内直连，免费，注册即用）**；Groq 免费 2000 条/天但官网国内可能打不开；OpenAI 需海外网络与支付。完全不想注册 → 本地 whisper（免 key，要装软件）。</div>
       <div class="form">
-        <label>声音转文字</label>
-        <label>快捷选择</label><select id="a-pick"></select>
-        <select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
-        <label>语音接口</label><input type="text" id="a-baseUrl" placeholder="https://api.groq.com/openai/v1 或本地服务地址">
-        <label>语音模型</label><input type="text" id="a-model" placeholder="whisper-large-v3">
-        <label>语音 key（免费也要注册拿）</label><input type="text" id="a-apiKey" placeholder="粘 Groq 的 key —— console.groq.com 注册就有">
-        <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
+        <label>快捷选择</label><select id="a-pick" style="grid-column:1 / -1"></select>
+        <label>语音接口</label><input type="text" id="a-baseUrl" placeholder="硅基: https://api.siliconflow.cn/v1">
+        <label>语音模型</label><input type="text" id="a-model" placeholder="FunAudioLLM/SenseVoiceSmall">
+        <label>语音 key</label><input type="text" id="a-apiKey" placeholder="注册后从后台复制粘贴到这里">
         <div class="full hint" id="a-hint"></div>
       </div>
     </div>
@@ -376,6 +374,16 @@
     </div><!-- /sec-photo -->
     <div class="view" id="view-video">
     <div class="hint" style="margin:0 0 14px">声音转文字的开关和模型配置在「模型接入」页。</div>
+    <div class="card">
+      <div class="card-title">视频 · 声音转文字（运行）</div>
+      <div class="card-desc">开关控制视频处理时是否做转写；key 和模型在「模型接入」页配。</div>
+      <div class="form">
+        <label>声音转文字</label><select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
+        <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
+      </div>
+    </div>
+
+
     <div class="sec-title" style="margin-top:2px">视频调节</div>
     <div class="hint" style="margin:0 0 14px">总开关和日限在上面「照片调节」。</div>
     <div class="card">

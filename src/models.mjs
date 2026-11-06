@@ -98,7 +98,18 @@ export function findModel(id) {
 
 /** 语音转文字目录（OpenAI 兼容 /audio/transcriptions）—— 视频卡「声音转文字」的快捷选择 */
 export const ASR_MODELS = [
-  // ── 免费 ──
+  // 顺序即推荐顺序:国内直连的排前面。可达性 2026-11-07 实测标注。
+  {
+    tier: '免费',
+    free: true,
+    id: 'FunAudioLLM/SenseVoiceSmall',
+    label: 'SenseVoiceSmall',
+    vendor: '硅基流动',
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    latency: '低',
+    keyUrl: 'https://cloud.siliconflow.cn',
+    note: '免费；中文识别好，自带标点；国内直连，注册即可拿 key（推荐首选）',
+  },
   {
     tier: '免费',
     free: true,
@@ -108,7 +119,7 @@ export const ASR_MODELS = [
     baseUrl: 'https://api.groq.com/openai/v1',
     latency: '低',
     keyUrl: 'https://console.groq.com',
-    note: '每天免费转 2000 条，不要钱；要注册账号拿 key',
+    note: '每天免费转 2000 条；但官网国内可能打不开（需网络环境），能注册就很好用',
   },
   {
     tier: '免费',
@@ -119,20 +130,8 @@ export const ASR_MODELS = [
     baseUrl: 'https://api.groq.com/openai/v1',
     latency: '很低',
     keyUrl: 'https://console.groq.com',
-    note: '同额度，速度更快；同一个 Groq key 直接用',
+    note: '同额度更快；同一个 Groq key 直接用',
   },
-  {
-    tier: '免费',
-    free: true,
-    id: 'FunAudioLLM/SenseVoiceSmall',
-    label: 'SenseVoiceSmall',
-    vendor: '硅基流动',
-    baseUrl: 'https://api.siliconflow.cn/v1',
-    latency: '低',
-    keyUrl: 'https://cloud.siliconflow.cn',
-    note: '免费；中文识别好，自带标点；要注册账号拿 key',
-  },
-  // ── 性价比 ──
   {
     tier: '性价比',
     free: false,
@@ -142,9 +141,8 @@ export const ASR_MODELS = [
     baseUrl: 'https://api.openai.com/v1',
     latency: '中',
     keyUrl: 'https://platform.openai.com/api-keys',
-    note: '/usr/bin/bash.006/分钟，效果稳定；要海外支付方式',
+    note: '$0.006/分钟；国内打不开官网，需海外网络与支付',
   },
-  // ── 高性能 ──
   {
     tier: '高性能',
     free: false,
@@ -154,20 +152,19 @@ export const ASR_MODELS = [
     baseUrl: 'https://api.openai.com/v1',
     latency: '低',
     keyUrl: 'https://platform.openai.com/api-keys',
-    note: '转写质量最好，按量计费；要海外支付方式',
+    note: '转写质量最好；国内打不开官网，需海外网络与支付',
   },
-  // ── 本地 ──
   {
     tier: '本地',
     free: true,
-    noKey: true, // 本机服务，完全不用 key
+    noKey: true,
     id: 'whisper-large-v3',
     label: 'Whisper server（本机）',
     vendor: '本地',
     baseUrl: 'http://127.0.0.1:8080',
     latency: '看机器',
     keyUrl: '',
-    note: '完全离线零 key；需本机起 whisper.cpp / faster-whisper server',
+    note: '完全离线零 key，不怕官网打不开；需本机起 whisper.cpp / faster-whisper server',
   },
 ];
 
