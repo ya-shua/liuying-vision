@@ -231,8 +231,6 @@
   .s-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
            font-size: 12px; background: #3a4150; color: #9aa3ad; flex: 0 0 auto; }
   .s-dot.ok { background: #2e9e44; color: #fff; }
-  .arch-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
-  @media (max-width: 980px) { .arch-cols { grid-template-columns: 1fr; } }
 
   /* 设置页：左模块导航 + 右内容 */
   .settings-body { display: grid; grid-template-columns: 128px 1fr; gap: 22px; align-items: start; }
@@ -252,46 +250,43 @@
     <div class="brand"><span class="mark"></span>留影<small>视觉接入</small></div>
     <a class="nav" data-view="archive">留档</a>
     <div class="sep"></div>
-    <a class="nav" data-sec="sec-access">模型接入</a>
-    <a class="nav" data-sec="sec-photo">照片调节</a>
-    <a class="nav" data-sec="sec-video">视频调节</a>
-    <a class="nav" data-sec="sec-outputs">输出去向</a>
+    <a class="nav" data-view="models">模型接入</a>
+    <a class="nav" data-view="photo">照片调节</a>
+    <a class="nav" data-view="video">视频调节</a>
+    <a class="nav" data-view="outputs">输出去向</a>
     <div class="grow"></div>
     </div>
   <div class="main">
 
   <!-- ══════ 留档 ══════ -->
     <div class="view on" id="view-archive">
-    <div class="banner" id="config-banner" style="display:none">
+<div class="banner" id="config-banner" style="display:none">
       <span class="b-text"></span>
     </div>
 
-    <div class="metrics" id="metrics"></div>
+<div class="metrics" id="metrics"></div>
 
-    <div class="card" id="check-card">
+<div class="card" id="check-card">
       <div class="card-title">自检</div>
-      <div class="card-desc">哪些链路通、哪些还缺，一眼看清。</div>
+      <div class="card-desc">一眼看出哪条链路是通的 —— 不用等真的出错才发现。</div>
       <div class="check-list" id="check-list"></div>
     </div>
+
 
     <div class="hint" style="margin:0 0 16px">图片 / 视频 = 原件 + 分析（存 <span id="arch-root"></span>，超额删最旧，上限在「设置」页改）；最底下是全部流水账。</div>
     <div class="row" style="margin-bottom:16px">
       <button class="btn" id="arch-refresh">刷新</button>
     </div>
 
-    <div class="arch-cols">
-  <div>
-    <div class="sec-title" style="margin-top:0">图片留档 <span class="count" id="arch-count-images"></span></div>
-    <div id="arch-grid-images" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px"></div>
+    <div class="sec-title">图片留档 <span class="count" id="arch-count-images"></span></div>
+    <div id="arch-grid-images" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px"></div>
     <div class="hint" id="arch-empty-images" style="display:none">还没有图片留档 —— 看过图之后，这里就有原图和分析。</div>
-  </div>
-  <div>
-    <div class="sec-title" style="margin-top:0">视频留档 <span class="count" id="arch-count-videos"></span></div>
-    <div id="arch-grid-videos" style="display:grid;gap:12px"></div>
-    <div class="hint" id="arch-empty-videos" style="display:none">还没有视频留档 —— 看过视频之后，这里就有抽帧和转写。</div>
-  </div>
-</div>
-<div class="sec-title" style="margin-top:24px">全部记录 <span class="count" id="seen-count"></span></div>
+
+    <div class="sec-title" style="margin-top:24px">视频留档 <span class="count" id="arch-count-videos"></span></div>
+    <div id="arch-grid-videos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
+    <div class="hint" id="arch-empty-videos" style="display:none">还没有视频留档 —— 看过视频之后，这里就有抽帧和分析。</div>
+
+    <div class="sec-title" style="margin-top:24px">全部记录 <span class="count" id="seen-count"></span></div>
     <div class="row" style="margin-bottom:10px">
       <button class="btn" id="seen-refresh">刷新</button>
     </div>
@@ -302,8 +297,7 @@
   </div>
 
 <!-- ══════ 设置 ══════ -->
-<div class="view" id="view-settings">
-<div id="sec-access">
+<div class="view" id="view-models">
 <div class="sec-title" style="margin-top:2px">模型接入</div>
     <div class="card key-card">
       <div class="card-title">视觉模型</div>
@@ -320,8 +314,8 @@
     </div>
 
         <div class="card">
-      <div class="card-title">试看一张图（只试不存）</div>
-      <div class="card-desc">粘一个图链，当场让模型看一眼 —— 纯验证接通没通，不进去向、不进账本、不留档。</div>
+      <div class="card-title" id="test-title">③ 试一张图 —— 接好后在这里验证</div>
+      <div class="card-desc">只描述不保存 —— 纯验证接通没通。</div>
       <div class="row">
         <input type="text" id="test-url" placeholder="https://…jpg" style="flex:1;min-width:240px">
         <button class="btn primary" id="test-go">看一眼</button>
@@ -338,7 +332,7 @@
     </div>
 
 </div><!-- /sec-access -->
-    <div id="sec-photo">
+    <div class="view" id="view-photo">
     <div class="sec-title" style="margin-top:2px">照片调节</div>
     <div class="card">
       <div class="card-title">节奏与开关</div>
@@ -360,7 +354,7 @@
       </div>
     </div>
     </div><!-- /sec-photo -->
-    <div id="sec-video">
+    <div class="view" id="view-video">
     <div class="sec-title" style="margin-top:2px">视频调节</div>
     <div class="hint" style="margin:0 0 14px">总开关和日限在上面「照片调节」。</div>
     <div class="card">
@@ -395,7 +389,7 @@
     </div>
 
     </div><!-- /sec-video -->
-    <div id="sec-outputs">
+    <div class="view" id="view-outputs">
     <div class="sec-title" style="margin-top:2px">输出去向</div>
     <div class="card">
       <div class="card-title">存储位置</div>
@@ -493,7 +487,6 @@
       </div>
     </div>
     </div><!-- /sec-outputs -->
-</div><!-- /view-settings -->
 
 <div class="savebar">
 <span class="hint" id="c-hint">设置保存在 vision.json（数据目录里）</span>
@@ -550,32 +543,19 @@ function toast(msg, kind = '') {
 }
 
 /* 左侧导航：功能/留档 一级，四个设置模块直达（旧书签 #access 等自动落进设置页对应模块） */
-function showTab(view, sec) {
-  if (view === 'func') view = 'archive'; // 旧书签
-  if (['access', 'outputs', 'photo', 'video'].includes(view)) { sec = sec || view; view = 'settings'; }
+function showTab(view) {
+  if (view === 'func') view = 'archive';
+  if (view === 'access' || view === 'settings') view = 'models';
+  if (view === 'outputs' || view === 'photo' || view === 'video') { /* 独立视图,直通 */ }
   if (!$('view-' + view)) return;
-  if (sec && !sec.startsWith('sec-')) sec = 'sec-' + sec; // 旧书签传短名（#video），侧栏传完整 id（sec-video）
   document.querySelectorAll('.sidebar a.nav[data-view]').forEach((x) => x.classList.toggle('on', x.dataset.view === view));
-  if (view !== 'settings') {
-    document.querySelectorAll('.sidebar a.nav[data-sec]').forEach((x) => x.classList.remove('on'));
-  }
   document.querySelectorAll('.view').forEach((x) => x.classList.remove('on'));
   $('view-' + view).classList.add('on');
   if (location.hash.slice(1) !== view) history.replaceState(null, '', '#' + view);
   if (view === 'archive') loadArchive();
-  if (view === 'settings' && sec) {
-    setTimeout(() => {
-      const el = document.getElementById(sec);
-      if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 14);
-      document.querySelectorAll('.sidebar a.nav[data-sec]').forEach((x) => x.classList.toggle('on', x.dataset.sec === sec));
-    }, 0);
-  }
 }
 document.querySelectorAll('.sidebar a.nav[data-view]').forEach((t) => {
   t.addEventListener('click', () => showTab(t.dataset.view));
-});
-document.querySelectorAll('.sidebar a.nav[data-sec]').forEach((t) => {
-  t.addEventListener('click', () => showTab('settings', t.dataset.sec));
 });
 window.addEventListener('hashchange', () => {
   const v = location.hash.slice(1);
@@ -589,7 +569,7 @@ function archCard(it, kind) {
   const card = document.createElement('div');
   card.className = 'card';
   card.style.cssText = 'margin:0;padding:8px';
-  const meta = [it.at ? new Date(Number(it.at)).toLocaleString() : '', it.model ?? '', kind === 'videos' ? (it.frameCount ?? 0) + ' 帧' : '', it.asrModel ? '转写 ' + it.asrModel : '']
+  const meta = [it.at ? new Date(Number(it.at)).toLocaleString() : '', it.model ?? '', kind === 'videos' ? (it.frameCount ?? 0) + ' 帧' : '']
     .filter(Boolean).join(' · ');
   if (kind === 'images') {
     const src = '/media/images/' + encodeURIComponent(it.file);
@@ -631,13 +611,6 @@ async function loadArchive() {
 }
 $('arch-refresh').addEventListener('click', () => { loadArchive(); loadSeen(); });
 
-/* 设置页滚动时，侧栏高亮当前模块 */
-const secSpy = new IntersectionObserver((entries) => {
-  for (const e of entries) {
-    if (!e.isIntersecting) continue;
-    document.querySelectorAll('.sidebar a.nav[data-sec]').forEach((x) => x.classList.toggle('on', x.dataset.sec === e.target.id));
-  }
-}, { rootMargin: '-15% 0px -65% 0px' });
 ['sec-access', 'sec-photo', 'sec-video', 'sec-outputs'].forEach((id) => {
   const el = document.getElementById(id);
   if (el) secSpy.observe(el);
@@ -675,6 +648,7 @@ async function loadStatus() {
     { l: '模型', m: esc(cfg.model || '未选'), s: (cfg.channels?.length > 1 ? cfg.channels.length + ' 通道并发 · ' : '') + (cfg.apiKeySet ? 'key …' + esc(cfg.apiKeyTail) : '免密') },
     { l: '输出去向', m: outs.length ? outs.map((o) => OUT_TYPES[o.type] || o.type).join(' / ') : '（没选）', s: '可叠加，互不拖累' },
     { l: '视频', m: (cfg.video?.enabled !== false ? '开 · ' + (cfg.video?.frames ?? 3) + '帧' : '关'), s: r.ffmpeg ? 'ffmpeg ✓' : '未装 ffmpeg — 视频跳过' },
+    { l: 'Token 消耗', m: (Number(r.usage.tokensToday) || 0) + ' tok', s: '今日 ' + (r.usage.countToday || 0) + ' 次 · 累计 ' + (Number(r.usage.tokensTotal) || 0) + ' tok' },
   ].map(({ l, m, s, bar }) =>
     `<div class="stat"><div class="stat-label">${l}</div><div class="stat-main">${m}</div><div class="stat-sub">${s}</div>` +
     (bar != null ? `<div class="bar${hot ? ' hot' : ''}"><i style="width:${bar}%"></i></div>` : '') +
@@ -761,6 +735,61 @@ function renderCheck(cfg, r, outs) {
       v.textContent = '没用记忆库输出（不影响使用）';
     }
   }).catch(() => {});
+}
+
+function fillConfig(cfg) {
+  $('c-enabled').value = cfg.enabled ? 'true' : 'false';
+  renderChannels(cfg);
+  $('c-dailyCap').value = cfg.dailyCap;
+  $('c-perMessage').value = cfg.perMessage;
+  const find = (type) => (cfg.outputs ?? []).find((o) => o.type === type);
+  const rm = find('ringmind');
+  // 只显示已配置的模块；没配的不摆出来（要加用上面的「添加去向」）
+  for (const t of ['ringmind', 'sqlite', 'jsonl', 'markdown', 'webhook', 'custom']) {
+    const f2 = find(t);
+    outShow(t, !!f2);
+  }
+  $('o-ringmind-on').checked = !!(rm && rm.enabled !== false);
+  $('o-ringmind-db').value = rm?.dbPath ?? '';
+  if (!rm && !ringDiscovered && !$('o-ringmind-db').value) {
+    ringDiscovered = true; // 只自动找一次：找到就静默填上，用户仍可改
+    discoverRing();
+  }
+  $('o-ringmind-name').value = rm?.name ?? '';
+  $('o-ringmind-ring').value = rm?.ring ?? '';
+  const jl = find('jsonl');
+  $('o-jsonl-on').checked = !!(jl && jl.enabled !== false);
+  $('o-jsonl-file').value = jl?.file ?? '';
+  const wh = find('webhook');
+  $('o-webhook-on').checked = !!(wh && wh.enabled !== false);
+  $('o-webhook-url').value = wh?.url ?? '';
+  const sq = find('sqlite');
+  $('o-sqlite-on').checked = !!(sq && sq.enabled !== false);
+  $('o-sqlite-db').value = sq?.dbPath ?? '';
+  $('o-sqlite-table').value = sq?.table ?? '';
+  const md = find('markdown');
+  $('o-md-on').checked = !!(md && md.enabled !== false);
+  $('o-md-file').value = md?.file ?? '';
+  const cu = find('custom');
+  $('o-custom-on').checked = !!(cu && cu.enabled !== false);
+  $('o-custom-file').value = cu?.file ?? '';
+  $('v-enabled').value = (cfg.video?.enabled !== false) ? 'true' : 'false';
+  $('v-frames').value = cfg.video?.frames ?? 3;
+  $('v-mode').value = cfg.video?.mode ?? 'interval';
+  $('v-interval').value = cfg.video?.intervalSec ?? 5;
+  $('v-ffmpeg').value = cfg.video?.ffmpegPath ?? 'ffmpeg';
+  $('v-maxmb').value = Math.round((cfg.video?.maxBytes ?? 67108864) / 1048576);
+  $('v-retainFrames').value = cfg.retain?.videoFrames ?? 10;
+  $('c-retainImages').value = cfg.retain?.images ?? 50;
+  $('p-maxmb').value = Math.round((cfg.maxBytes ?? 8388608) / 1048576);
+  $('a-enabled').value = (cfg.asr?.enabled && cfg.asr?.baseUrl) ? 'true' : 'false';
+  $('a-baseUrl').value = cfg.asr?.baseUrl ?? '';
+  $('a-model').value = cfg.asr?.model ?? 'whisper-large-v3';
+  $('a-apiKey').value = '';
+  $('a-apiKey').placeholder = (cfg.asr?.apiKeySet || cfg.asr?.apiKey) ? '已配置，留空 = 不改' : '免密服务留空';
+  $('a-maxsec').value = cfg.asr?.maxSeconds ?? 120;
+  if ($('d-dir') && document.activeElement !== $('d-dir')) $('d-dir').value = cfg.dataDir || '';
+  syncAsrPick(cfg);
 }
 
 /* 输出去向：选类型添加，不需要的删掉 */

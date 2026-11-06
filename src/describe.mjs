@@ -121,5 +121,5 @@ export async function describeImage(p) {
 
   if (!desc) throw new Error('视觉模型回了空话');
 
-  return { desc, points, model, raw, ms: Date.now() - t0 };
+  return { desc, points, model, raw, ms: Date.now() - t0, usage: body?.usage ?? null };
 }

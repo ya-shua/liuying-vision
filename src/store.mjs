@@ -33,6 +33,7 @@ export function openEyeStore(dataDir) {
   `);
   try { db.exec('ALTER TABLE seen ADD COLUMN ms INTEGER'); } catch {} // 老 eye.db 补列
   try { db.exec('ALTER TABLE seen ADD COLUMN kind TEXT'); } catch {}
+  try { db.exec('ALTER TABLE seen ADD COLUMN tokens INTEGER'); } catch {} // token 消耗记账
   const store = {
     db,
     hasSeen(hash) {
@@ -47,10 +48,17 @@ export function openEyeStore(dataDir) {
     lastSeenAt() {
       return db.prepare('SELECT MAX(created_at) AS t FROM seen').get().t ?? null;
     },
-    record({ hash, url, chatKey, model, desc, outputs, createdAt, ms, kind }) {
+    /** token 消耗：今日（tokens 有数的才算——免费档不回 usage 的只算次数）/ 累计 */
+    usageToday(dayStart) {
+      return db.prepare('SELECT COALESCE(SUM(tokens),0) AS tokens, COUNT(*) AS n FROM seen WHERE created_at >= ?').get(dayStart);
+    },
+    usageTotal() {
+      return db.prepare('SELECT COALESCE(SUM(tokens),0) AS tokens, COUNT(*) AS n FROM seen').get();
+    },
+    record({ hash, url, chatKey, model, desc, outputs, createdAt, ms, kind, tokens }) {
       db.prepare(
-        'INSERT INTO seen (hash, url, chat_key, model, desc, outputs, created_at, ms, kind) VALUES (?,?,?,?,?,?,?,?,?)'
-      ).run(hash, url, chatKey ?? null, model ?? null, desc ?? null, JSON.stringify(outputs ?? []), createdAt, ms ?? null, kind ?? null);
+        'INSERT INTO seen (hash, url, chat_key, model, desc, outputs, created_at, ms, kind, tokens) VALUES (?,?,?,?,?,?,?,?,?,?)'
+      ).run(hash, url, chatKey ?? null, model ?? null, desc ?? null, JSON.stringify(outputs ?? []), createdAt, ms ?? null, kind ?? null, tokens ?? null);
     },
     recent(limit = 50) {
       return db

@@ -101,5 +101,5 @@ export async function transcribeAudio(p) {
   const j = await res.json().catch(() => null);
   const text = String(j?.text ?? '').trim();
   if (!text) throw new Error('语音转文字返回空');
-  return { text: text.slice(0, 500), model };
+  return { text: text.slice(0, 500), model, usage: j?.usage ?? null };
 }

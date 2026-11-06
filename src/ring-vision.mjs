@@ -303,6 +303,7 @@ export async function describeVideo(videoBuffer, { cfg, channel, fetchImpl, text
   const descs = [];
   const pts = [];
   let ms = 0;
+  let usageTokens = 0;
   for (const f of ex.frames) {
     const out = await describeImage({
       baseUrl: channel.baseUrl,
@@ -315,6 +316,7 @@ export async function describeVideo(videoBuffer, { cfg, channel, fetchImpl, text
       timeoutMs: cfg.timeoutMs,
     });
     ms += out.ms || 0;
+    if (out.usage?.total_tokens) usageTokens = (usageTokens ?? 0) + out.usage.total_tokens;
     if (out.desc) descs.push(out.desc);
     for (const p of out.points) if (!pts.includes(p)) pts.push(p);
   }
@@ -337,6 +339,7 @@ export async function describeVideo(videoBuffer, { cfg, channel, fetchImpl, text
           language: cfg.asr.language, fetchImpl, timeoutMs: 90000,
         });
         ms += Date.now() - t0;
+        if (tr.usage?.total_tokens) usageTokens = (usageTokens ?? 0) + tr.usage.total_tokens;
         if (tr.text) audioPart = `\n声音：「${tr.text}」`;
       }
     } catch (e) {
@@ -348,6 +351,7 @@ export async function describeVideo(videoBuffer, { cfg, channel, fetchImpl, text
     points: pts.slice(0, 6),
     ms,
     frames: ex.frames.length,
+    usage: usageTokens || null,
     frameImages: ex.frames, // base64 帧图原样带出（留档用，不额外占内存——本来就是刚抽出来的）
   };
 }
@@ -405,7 +409,7 @@ export async function visionNote(input, opts = {}) {
       const hash = urlHash(kind + '|' + url);
       if (store.hasSeen(hash)) { results[idx] = { url, kind, skipped: 'seen' }; return; }
 
-      let desc, points, ms, frames, archiveSrc = null; // archiveSrc：要留档的东西（原图/帧图），成功路径统一交 archiveMedia
+      let desc, points, ms, frames, tokens = 0, archiveSrc = null; // archiveSrc：要留档的东西（原图/帧图），成功路径统一交 archiveMedia
 
       if (kind === 'video') {
         // 视频：多步且容易失败 → 单条容错，一个视频坏了不拖累其它媒体
@@ -429,7 +433,7 @@ export async function visionNote(input, opts = {}) {
             clearTimeout(timer);
           }
           const out = await describeVideo(buf, { cfg, channel: ch, fetchImpl, text, audio: true, spawnImpl: opts.spawnImpl });
-          desc = out.desc; points = out.points; ms = out.ms; frames = out.frames;
+          desc = out.desc; points = out.points; ms = out.ms; frames = out.frames; tokens = out.usage ?? 0;
           archiveSrc = { frameImages: out.frameImages };
         } catch (e) {
           console.error(`[留影] ✗ 视频没看成：${e?.message ?? e}`);
@@ -454,7 +458,7 @@ export async function visionNote(input, opts = {}) {
               frames: Math.min(3, v.frames || 3), mode: 'even', intervalSec: 1,
               spawnImpl: opts.spawnImpl,
             });
-            desc = out.desc; points = out.points; ms = out.ms; frames = out.frames;
+            desc = out.desc; points = out.points; ms = out.ms; frames = out.frames; tokens = out.usage ?? 0;
             kind = 'gif';
             archiveSrc = { mime: img.mime, base64: img.base64 }; // 动图按"图"留档：存原图，帧随时可再抽
           } catch (e) {
@@ -473,7 +477,7 @@ export async function visionNote(input, opts = {}) {
             fetchImpl,
             timeoutMs: cfg.timeoutMs,
           });
-          desc = out.desc; points = out.points; ms = out.ms;
+          desc = out.desc; points = out.points; ms = out.ms; tokens = out.usage?.total_tokens ?? 0;
           archiveSrc = { mime: img.mime, base64: img.base64 };
         }
       }
@@ -491,7 +495,7 @@ export async function visionNote(input, opts = {}) {
         }
       }
 
-      store.record({ hash, url, chatKey: key, model: ch.model, desc, outputs: outputsResult, createdAt: at, ms, kind });
+      store.record({ hash, url, chatKey: key, model: ch.model, desc, outputs: outputsResult, createdAt: at, ms, kind, tokens });
 
       // 留档：图=原图+分析，视频=抽帧+分析（best-effort，挂了不影响任何主流程）
       if (archiveSrc) {
