@@ -359,7 +359,8 @@
               <button class="btn" id="a-verify">验证</button>
             </div>
             <label></label><span class="hint" id="a-verify-result"></span>
-          </div>
+          <div class="full hint" id="a-hint"></div>
+</div>
         </div>
         <div id="asr-ch-list" class="full" style="display:grid;gap:10px"></div>
         <div class="full"><button class="btn" id="asr-ch-add" type="button">＋ 添加转写服务（最多 4 条）</button></div>
@@ -415,7 +416,6 @@
       <div class="form">
         <label>声音转文字</label><select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
         <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
-        <div class="full hint" id="a-hint"></div>
       </div>
     </div>
 </div><!-- /sec-photo -->
@@ -439,7 +439,7 @@
       <div class="form">
         <label>视频开关</label>
         <select id="v-enabled"><option value="true">开</option><option value="false">关（只看图）</option></select>
-        <label>抽帧张数</label><input type="text" id="v-frames" placeholder="建议 3（3 帧足够描述大多数视频）">
+        <label>抽帧张数</label><input type="text" id="v-frames" placeholder="建议 3 —— 整段视频总共取 3 帧来看">
         <label>抽帧方式</label>
         <select id="v-mode"><option value="interval">按间隔秒</option><option value="even">按时长均匀分布</option><option value="scene">按镜头切换（画面一变才取）</option></select>
         <label>间隔秒</label><input type="text" id="v-interval" placeholder="建议 10（interval 模式的间隔秒数）">
