@@ -289,7 +289,19 @@ export async function createPanelServer({
 
       if (p === '/api/stats/daily' && req.method === 'GET') {
         const days = Math.min(30, Number(u.searchParams.get('days')) || 14);
-        return json(res, 200, { ok: true, days: store.dailyStats(days) });
+        const raw = store.dailyStats(days);
+        // 零填充:生成完整的 N 天序列,没数据的天补零
+        const map = {};
+        for (const r of raw) map[r.day] = r;
+        const result = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const d = new Date(Date.now() - i * 86400000);
+          // 和 SQL 的 '+8 hours' 对齐:用 +8 时区的日期字符串
+          const utc8 = new Date(d.getTime() + 8 * 3600000);
+          const key = utc8.toISOString().slice(0, 10);
+          result.push(map[key] || { day: key, total: 0, videos: 0, images: 0, tokens: 0 });
+        }
+        return json(res, 200, { ok: true, days: result });
       }
 
       if (p === '/api/seen' && req.method === 'GET') {

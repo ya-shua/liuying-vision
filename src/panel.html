@@ -404,8 +404,8 @@
       <div class="form">
         <label>总开关</label>
         <select id="c-enabled"><option value="true">开</option><option value="false">关</option></select>
-        <label>一天最多看</label><input type="text" id="c-dailyCap">
-        <label>每条消息最多看</label><input type="text" id="c-perMessage">
+        <label>一天最多看</label><input type="text" id="c-dailyCap" placeholder="建议 40（一天约 40 张，不会刷爆）">
+        <label>每条消息最多看</label><input type="text" id="c-perMessage" placeholder="建议 2（防止单条消息刷屏）">
       </div>
     </div>
 
@@ -413,7 +413,7 @@
       <div class="card-title">照片 · 大小与留档</div>
       <div class="card-desc">图片大小上限；留档 = 原图 + 分析存进 data\media\，超额自动删最旧。</div>
       <div class="form">
-        <label>大小上限 MB</label><input type="text" id="p-maxmb" placeholder="默认 8">
+        <label>大小上限 MB</label><input type="text" id="p-maxmb" placeholder="默认 8（QQ 图片很少超 2MB）">
         <label>图片留档</label><input type="text" id="c-retainImages" placeholder="默认 50 份（0 = 不留）">
       </div>
     </div>
@@ -448,12 +448,12 @@
       <div class="form">
         <label>视频开关</label>
         <select id="v-enabled"><option value="true">开</option><option value="false">关（只看图）</option></select>
-        <label>抽帧张数</label><input type="text" id="v-frames" placeholder="3">
+        <label>抽帧张数</label><input type="text" id="v-frames" placeholder="建议 3（3 帧足够描述大多数视频）">
         <label>抽帧方式</label>
         <select id="v-mode"><option value="interval">按间隔秒</option><option value="even">按时长均匀分布</option><option value="scene">按镜头切换（画面一变才取）</option></select>
-        <label>间隔秒</label><input type="text" id="v-interval" placeholder="5">
+        <label>间隔秒</label><input type="text" id="v-interval" placeholder="建议 10（QQ 视频一般 10-60 秒）">
         <label>ffmpeg 路径</label><input type="text" id="v-ffmpeg" placeholder="bin\ffmpeg.exe（插件自带）/ 完整路径 / ffmpeg（PATH）">
-        <label>大小上限 MB</label><input type="text" id="v-maxmb" placeholder="64">
+        <label>大小上限 MB</label><input type="text" id="v-maxmb" placeholder="默认 64（QQ 视频很少超 20MB）">
         <label>截图留档</label><input type="text" id="v-retainFrames" placeholder="默认 10 份（0 = 不留）">
       </div>
     </div>
