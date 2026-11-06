@@ -356,9 +356,17 @@ export async function createPanelServer({
       if (p === '/api/verify-key' && req.method === 'POST') {
         const vbody = await readBody(req);
         const vBaseUrl = String(vbody.baseUrl || '').trim().replace(/\/+$/, '');
-        const vApiKey = String(vbody.apiKey ?? '');
+        let vApiKey = String(vbody.apiKey ?? '');
         const vModel = String(vbody.model || '').trim();
         const vKind = vbody.kind === 'asr' ? 'asr' : 'vision';
+        // key 为空 → 从已保存的配置里取（保存后面板清空了输入框，但验证应该用已存的 key）
+        if (!vApiKey) {
+          const saved = readConfigFile(configPath);
+          vApiKey = vKind === 'asr'
+            ? (saved.asr?.apiKey ?? '')
+            : (saved.channels ?? []).find((c) => c.baseUrl === vBaseUrl && c.model === vModel)?.apiKey
+              ?? (saved.baseUrl === vBaseUrl && saved.model === vModel ? saved.apiKey ?? '' : '');
+        }
         if (!/^https?:\/\//.test(vBaseUrl)) return json(res, 400, { ok: false, error: '要 http(s) 接口地址' });
         const vT0 = Date.now();
         try {
