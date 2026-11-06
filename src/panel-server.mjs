@@ -354,34 +354,34 @@ export async function createPanelServer({
 
       // key 接入验证：轻量请求，验证 key/模型是否可用（不动配置；服务端代理避开浏览器跨域）
       if (p === '/api/verify-key' && req.method === 'POST') {
-        const body = await readBody(req);
-        const baseUrl = String(body.baseUrl || '').trim().replace(/\/+$/, '');
-        const apiKey = String(body.apiKey ?? '');
-        const model = String(body.model || '').trim();
-        const kind = body.kind === 'asr' ? 'asr' : 'vision';
-        if (!/^https?:\/\//.test(baseUrl)) return json(res, 400, { ok: false, error: '要 http(s) 接口地址' });
-        const t0 = Date.now();
+        const vbody = await readBody(req);
+        const vBaseUrl = String(vbody.baseUrl || '').trim().replace(/\/+$/, '');
+        const vApiKey = String(vbody.apiKey ?? '');
+        const vModel = String(vbody.model || '').trim();
+        const vKind = vbody.kind === 'asr' ? 'asr' : 'vision';
+        if (!/^https?:\/\//.test(vBaseUrl)) return json(res, 400, { ok: false, error: '要 http(s) 接口地址' });
+        const vT0 = Date.now();
         try {
-          let res;
-          if (kind === 'asr') {
-            res = await fetch(baseUrl + '/models', { headers: apiKey ? { authorization: 'Bearer ' + apiKey } : {}, signal: AbortSignal.timeout(15000) });
+          let vRes;
+          if (vKind === 'asr') {
+            vRes = await fetch(vBaseUrl + '/models', { headers: vApiKey ? { authorization: 'Bearer ' + vApiKey } : {}, signal: AbortSignal.timeout(15000) });
           } else {
-            res = await fetch(baseUrl + '/chat/completions', {
+            vRes = await fetch(vBaseUrl + '/chat/completions', {
               method: 'POST',
-              headers: { 'content-type': 'application/json', ...(apiKey ? { authorization: 'Bearer ' + apiKey } : {}) },
-              body: JSON.stringify({ model: model || 'test', messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
+              headers: { 'content-type': 'application/json', ...(vApiKey ? { authorization: 'Bearer ' + vApiKey } : {}) },
+              body: JSON.stringify({ model: vModel || 'test', messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
               signal: AbortSignal.timeout(15000),
             });
           }
-          const ms = Date.now() - t0;
-          const respBody = await res.text().catch(() => '');
+          const vMs = Date.now() - vT0;
+          const vBody = await vRes.text().catch(() => '');
           let verdict;
-          if (res.status === 429) verdict = { ok: true, message: 'key 有效（当前触发限流，稍后即可用）' };
-          else if (res.ok) verdict = { ok: true, message: 'key 有效，接入可用' };
-          else if (res.status === 401 || res.status === 403) verdict = { ok: false, message: 'key 无效或没填 —— 免费也要注册账号拿 key（原始返回：' + respBody.slice(0, 100) + '）' };
-          else if (res.status === 404) verdict = { ok: false, message: '接口地址或模型名不对（404；baseUrl 结尾不要带 /chat/completions）' };
-          else verdict = { ok: false, message: 'HTTP ' + res.status + '：' + respBody.slice(0, 120) };
-          return json(res, 200, { ok: verdict.ok, message: verdict.message, ms, httpStatus: res.status });
+          if (vRes.status === 429) verdict = { ok: true, message: 'key 有效（当前触发限流，稍后即可用）' };
+          else if (vRes.ok) verdict = { ok: true, message: 'key 有效，接入可用' };
+          else if (vRes.status === 401 || vRes.status === 403) verdict = { ok: false, message: 'key 无效或没填 —— 免费也要注册账号拿 key（原始返回：' + vBody.slice(0, 100) + '）' };
+          else if (vRes.status === 404) verdict = { ok: false, message: '接口地址或模型名不对（404；baseUrl 结尾不要带 /chat/completions）' };
+          else verdict = { ok: false, message: 'HTTP ' + vRes.status + '：' + vBody.slice(0, 120) };
+          return json(res, 200, { ok: verdict.ok, message: verdict.message, ms: vMs, httpStatus: vRes.status });
         } catch (e) {
           return json(res, 200, { ok: false, message: '连不上接口 —— 检查网络或地址（' + String(e?.message ?? e).slice(0, 80) + '）' });
         }
