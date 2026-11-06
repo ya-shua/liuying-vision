@@ -345,7 +345,7 @@
 <div class="sec-title" style="margin-top:2px">声音转文字</div>
     <div class="card key-card">
       <div class="card-title">转写模型</div>
-      <div class="card-desc">把视频里的人声转成文字拼进描述（可选，没配 = 只看画面听不到）。推荐硅基流动（国内直连，免费，中文好）。Groq/OpenAI 注册页面国内打不开。完全不想注册 → 本地 whisper（免 key，要装软件）。</div>
+      <div class="card-desc">让 AI 不只看到画面，还能听见视频里的人在说什么 —— 语音原样转成文字，跟画面描述拼成一条完整记录。画面是视觉模型「看」的，声音是这里「听」的，不是翻译。没配 = 只看画面、听不到。推荐硅基流动（国内直连，免费，中文好）；完全不想注册 → 本地 whisper（免 key，要装软件）。</div>
       <div class="form">
         <div class="out-block">
           <div class="out-head"><b>转写服务</b><span class="hint">选一个 → 地址和模型自动填；按免费/性价比/高性能分组</span></div>
@@ -412,7 +412,7 @@
     
     <div class="card">
       <div class="card-title">运行设置</div>
-      <div class="card-desc">声音转文字的开关和时长限制 —— 在「视频调节」页也可以调。</div>
+      <div class="card-desc">视频里有人说话就值得开：AI 看画面之外还能听见声音。模型和 key 在「模型接入」页。</div>
       <div class="form">
         <label>声音转文字</label><select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
         <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
@@ -420,15 +420,7 @@
     </div>
 </div><!-- /sec-photo -->
     <div class="view" id="view-video">
-    <div class="hint" style="margin:0 0 14px">声音转文字的开关和模型配置在「模型接入」页。</div>
-    <div class="card">
-      <div class="card-title">视频 · 声音转文字（运行）</div>
-      <div class="card-desc">开关控制视频处理时是否做转写；key 和模型在「模型接入」页配。</div>
-      <div class="form">
-        <label>声音转文字</label><select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
-        <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
-      </div>
-    </div>
+    <div class="hint" style="margin:0 0 14px">声音转文字的开关在「照片调节」，模型和 key 在「模型接入」页。</div>
 
 
     <div class="sec-title" style="margin-top:2px">视频调节</div>
@@ -442,7 +434,7 @@
         <label>抽帧张数</label><input type="text" id="v-frames" placeholder="建议 3 —— 整段视频总共取 3 帧来看">
         <label>抽帧方式</label>
         <select id="v-mode"><option value="interval">按间隔秒</option><option value="even">按时长均匀分布</option><option value="scene">按镜头切换（画面一变才取）</option></select>
-        <label>间隔秒</label><input type="text" id="v-interval" placeholder="建议 10（interval 模式的间隔秒数）">
+        <label id="v-interval-label">间隔秒</label><input type="text" id="v-interval" placeholder="建议 10（每隔几秒取一帧）">
         <label>ffmpeg 路径</label><input type="text" id="v-ffmpeg" placeholder="bin\ffmpeg.exe（插件自带）/ 完整路径 / ffmpeg（PATH）">
         <label>大小上限 MB</label><input type="text" id="v-maxmb" placeholder="默认 20（刷视频足够）">
         <label>截图留档</label><input type="text" id="v-retainFrames" placeholder="默认 10 份（0 = 不留）">
@@ -693,6 +685,14 @@ async function loadChart() {
 }
 $('arch-refresh').addEventListener('click', () => { loadArchive(); loadSeen(); });
 
+/* 抽帧方式决定填什么：只有「按间隔秒」才需要间隔秒，均匀/镜头模式不用填 */
+function syncModeFields() {
+  const on = $('v-mode').value === 'interval';
+  $('v-interval').style.display = on ? '' : 'none';
+  $('v-interval-label').style.display = on ? '' : 'none';
+}
+$('v-mode').addEventListener('change', syncModeFields);
+
 
 /* 状态 + 磁贴 + 引导横幅 */
 async function loadStatus() {
@@ -795,7 +795,7 @@ function renderCheck(cfg, r, outs) {
   });
 
   // 5. 声音转文字 —— 开了没 key 是静默失败，必须在这里说出来
-  if (!cfg.asr?.enabled) items.push({ s: 'warn', k: '声音转文字', v: '没开 —— 视频只看画面听不到人说话（设置 → 视频调节里开）' });
+  if (!cfg.asr?.enabled) items.push({ s: 'warn', k: '声音转文字', v: '没开 —— 视频只看画面、听不到人说话（照片调节里开）' });
   else if (!cfg.asr.baseUrl) items.push({ s: 'warn', k: '声音转文字', v: '开了但没填语音接口地址' });
   else if (!(cfg.asr.apiKeySet || cfg.asr.apiKey)) items.push({ s: 'warn', k: '声音转文字', v: '开了但没 key —— 转写会静默失败；免费也要注册拿 key（Groq: console.groq.com）' });
   else items.push({ s: 'ok', k: '声音转文字', v: '已配 key，视频会带声音内容' });
@@ -1048,6 +1048,7 @@ function fillConfig(cfg) {
   $('v-frames').value = cfg.video?.frames ?? 3;
   $('v-mode').value = cfg.video?.mode ?? 'interval';
   $('v-interval').value = cfg.video?.intervalSec ?? 5;
+  syncModeFields();
   $('v-ffmpeg').value = cfg.video?.ffmpegPath ?? 'ffmpeg';
   $('v-maxmb').value = Math.round((cfg.video?.maxBytes ?? 67108864) / 1048576);
   $('v-retainFrames').value = cfg.retain?.videoFrames ?? 10;
