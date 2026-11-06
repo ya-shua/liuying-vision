@@ -61,7 +61,6 @@
   .sidebar a.nav.on { color: var(--eye); background: rgba(255,212,121,.09); border-left-color: var(--eye); }
   .sidebar .sep { height: 1px; background: var(--border-soft); margin: 9px 8px; }
   .sidebar .grow { flex: 1; }
-  .sidebar .side-foot { display: grid; gap: 8px; padding: 0 6px; }
   .main { padding: 24px 30px 48px; max-width: 940px; width: 100%; box-sizing: border-box; }
   .close-btn { padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
     background: rgba(255,125,125,.07); border: 1px solid rgba(255,125,125,.3); color: var(--bad);
@@ -257,10 +256,7 @@
     <a class="nav" data-sec="sec-video">视频调节</a>
     <a class="nav" data-sec="sec-outputs">输出去向</a>
     <div class="grow"></div>
-      <div class="side-foot">
-      <span class="pill" id="p-state">读取中…</span>
     </div>
-  </div>
   <div class="main">
 
   <!-- ══════ 功能展示 ══════ -->
@@ -673,15 +669,6 @@ async function loadStatus() {
   const r = await fetch('/api/status').then((x) => x.json());
   const cfg = r.config;
   currentCfg = cfg;
-  const state = $('p-state');
-  const outs = (cfg.outputs ?? []).filter((o) => o.enabled !== false);
-  if (outs.length && cfg.enabled) {
-    state.textContent = '开着 · ' + cfg.model + ' → ' + outs.map((o) => OUT_TYPES[o.type] || o.type).join('/');
-    state.className = 'pill ok';
-  } else {
-    state.textContent = !outs.length ? '没选输出去向' : '已停用';
-    state.className = 'pill bad';
-  }
   // 新手接入清单：没接好时功能页就是"两步 + 试看"，接好了自动换成仪表盘
 
   // 配置坏了必须说出来，不能让人以为"我的设置凭空消失了"
