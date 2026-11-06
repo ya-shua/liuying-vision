@@ -341,21 +341,13 @@
             <label></label><span class="hint" id="a-verify-result"></span>
           </div>
         </div>
+        <div id="asr-ch-list" class="full" style="display:grid;gap:10px"></div>
+        <div class="full"><button class="btn" id="asr-ch-add" type="button">＋ 添加转写服务（最多 4 条）</button></div>
         <div class="save-row">
           <button class="btn gold" id="asr-save">保存转写接入</button>
           <span class="key-state" id="asr-state"></span>
           <span class="hint">key 打码保存（只留尾四位），即刻生效。</span>
         </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">运行设置</div>
-      <div class="card-desc">声音转文字的开关和时长限制 —— 在「视频调节」页也可以调。</div>
-      <div class="form">
-        <label>声音转文字</label><select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
-        <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
-        <div class="full hint" id="a-hint"></div>
       </div>
     </div>
 
@@ -396,7 +388,17 @@
         <label>图片留档</label><input type="text" id="c-retainImages" placeholder="默认 50 份（0 = 不留）">
       </div>
     </div>
-    </div><!-- /sec-photo -->
+    
+    <div class="card">
+      <div class="card-title">运行设置</div>
+      <div class="card-desc">声音转文字的开关和时长限制 —— 在「视频调节」页也可以调。</div>
+      <div class="form">
+        <label>声音转文字</label><select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
+        <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
+        <div class="full hint" id="a-hint"></div>
+      </div>
+    </div>
+</div><!-- /sec-photo -->
     <div class="view" id="view-video">
     <div class="hint" style="margin:0 0 14px">声音转文字的开关和模型配置在「模型接入」页。</div>
     <div class="card">
