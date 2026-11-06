@@ -186,15 +186,6 @@
   .check-item .v.bad { color: var(--bad); }
   .check-item .v.warn { color: var(--warn); }
 
-  /* 保存提示 */
-  .toast { position: fixed; right: 22px; bottom: 22px; z-index: 50; padding: 10px 16px; border-radius: 10px;
-    background: rgba(16,22,32,.97); border: 1px solid var(--border); font-size: 12.5px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; transform: translateY(8px);
-    transition: opacity .2s, transform .2s; pointer-events: none; }
-  .toast.on { opacity: 1; transform: none; }
-  .toast.ok { border-color: rgba(110,231,160,.45); color: var(--ok); }
-  .toast.bad { border-color: rgba(255,125,125,.45); color: var(--bad); }
-  .ok-text { color: var(--ok); font-size: 12px; }
 
   .savebar {
     position: fixed; right: 26px; bottom: 18px; z-index: 30;
@@ -593,7 +584,6 @@
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
 
 <script>
 "use strict";
@@ -605,14 +595,7 @@ let currentCfg = { outputs: [] };
 
 /* 轻提示 */
 let toastTimer = null;
-function toast(msg, kind = '') {
-  const el = $('toast');
-  if (!el) return;
-  el.textContent = msg;
-  el.className = 'toast on ' + kind;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.className = 'toast ' + kind; }, 2200);
-}
+function toast() {} // 弹窗去掉——保存按钮旁的文字反馈已足够
 
 /* 左侧导航：五视图直连（旧书签 #func/#access/#settings 等自动纠正） */
 function showTab(view) {
