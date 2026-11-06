@@ -119,16 +119,16 @@ export function defaultVisionConfig() {
     model: 'glm-4v-flash',
     apiKey: '',                                        // 选填：空 = 不带鉴权头（免密/本地接口）
     dailyCap: 40,                                      // 一天最多看多少个媒体，防着刷屏刷爆
-    perMessage: 2,                                     // 一条消息最多看几个媒体
+    perMessage: 1,                                     // 一条消息最多看几个媒体
     maxBytes: 8 * 1024 * 1024,                         // 图太大不看（8MB）
     timeoutMs: 45000,
     outputs: [],                                       // 输出适配器列表（见 docs）
     video: {                                           // 视频设置（全部用户可配）
       enabled: true,                                   // 视频开关（关 = 只看图）
       frames: 3,                                       // 抽几帧
-      mode: 'even',                                // interval=按间隔秒 | even=按时长均匀 | scene=按镜头切换
+      mode: 'scene',                               // interval=按间隔秒 | even=按时长均匀 | scene=按镜头切换(刷视频推荐)
       intervalSec: 5,                                  // interval 模式的间隔秒
-      maxBytes: 64 * 1024 * 1024,                      // 视频太大不看（64MB）
+      maxBytes: 20 * 1024 * 1024,                      // 视频太大不看（20MB，刷视频足够）
       ffmpegPath: 'bin/ffmpeg.exe',                    // 插件自带（项目根 bin\，相对路径按项目根解析）；也可填完整路径或 'ffmpeg'（PATH）
     },
     asr: {                                             // 声音转文字（可选；视频里有人说话才值得开）
