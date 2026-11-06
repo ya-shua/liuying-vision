@@ -99,8 +99,11 @@ export async function runUpdate(root, dataDir, fetchImpl = fetch, spawnImpl = sp
   const tgz = join(dataDir, 'tmp', `update-${Date.now()}.tgz`);
   writeFileSync(tgz, buf);
   try {
+    // 相对路径 + cwd：GNU tar 会把 'C:\...' 的冒号当远程主机，绝对路径必炸
     const r = await new Promise((resolveP) => {
-      const p = spawnImpl('tar', ['-xzf', tgz, '-C', tmp], { shell: false });
+      const p = spawnImpl('tar', ['-xzf', tgz.split(sep).pop(), '-C', 'update'], {
+        shell: false, cwd: join(dataDir, 'tmp'),
+      });
       let err = '';
       p.stderr?.on('data', (d) => { err += d; });
       p.on('error', (e) => resolveP({ code: -1, err: e.message }));
