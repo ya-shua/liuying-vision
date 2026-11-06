@@ -133,11 +133,11 @@ export function defaultVisionConfig() {
     },
     asr: {                                             // 声音转文字（可选；视频里有人说话才值得开）
       enabled: false,                                  // 没配语音服务就是关
-      baseUrl: '',                                     // OpenAI 兼容 /audio/transcriptions（Groq 免费档 / 本地 whisper server）
+      baseUrl: 'https://api.siliconflow.cn/v1',        // OpenAI 兼容 /audio/transcriptions（Groq 免费档 / 本地 whisper server）
       model: 'whisper-large-v3',
       apiKey: '',                                      // 选填（免密服务留空）
       maxSeconds: 120,                                 // 最长转写多少秒（控制量）
-      language: '',                                    // 选填，如 zh；留空自动检测
+      language: 'zh',                                  // 选填，如 zh；留空自动检测
     },
     retain: {                                          // 留档：看过的媒体+分析留在 dataDir/media/（best-effort，0 = 不留）
       images: 50,                                      // 最近 N 张图片（原图 + 同名 .json 分析）
