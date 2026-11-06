@@ -201,6 +201,14 @@ export async function createPanelServer({
     const u = new URL(req.url, 'http://x');
     const p = u.pathname;
 
+    // 隐私/安全：所有 POST 只认本机面板自己发起 —— 别的网页不能改你的配置、建文件夹、停服务
+    if (req.method === 'POST') {
+      const origin = String(req.headers.origin || '');
+      if (origin && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) {
+        return json(res, 403, { ok: false, error: '只允许从本机面板发起' });
+      }
+    }
+
     try {
       if (req.method === 'GET' && p === '/') {
         // no-store：改了面板必须刷新就生效，别让浏览器拿旧页面让人以为"改了没用"

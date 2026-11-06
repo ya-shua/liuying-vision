@@ -143,6 +143,21 @@ test("试看：模型 401 的报错由 describe 层翻译成人话（见 vision.
   assert.ok(true);
 });
 
+test("隐私：所有 POST 拒绝跨站 Origin（改配置/建文件夹/试看都不行）", async () => {
+  const { s } = await boot({ withKey: false });
+  const evil = { "content-type": "application/json", origin: "https://evil.example" };
+  const cfg = await fetch(s.url + "/api/config", { method: "POST", headers: evil, body: "{}" });
+  assert.equal(cfg.status, 403, "改配置要被拒");
+  const fs = await fetch(s.url + "/api/fs", { method: "POST", headers: evil, body: JSON.stringify({ dir: "C:/evil" }) });
+  assert.equal(fs.status, 403, "建文件夹要被拒");
+  const test = await fetch(s.url + "/api/test", { method: "POST", headers: evil, body: JSON.stringify({ url: "https://a/x.jpg" }) });
+  assert.equal(test.status, 403, "试看要被拒");
+  // 本机面板自己（本源 Origin）不受影响
+  const ok = await fetch(s.url + "/api/config", { method: "POST", headers: { "content-type": "application/json", origin: "http://127.0.0.1:5188" }, body: "{}" });
+  assert.equal(ok.status, 200);
+  await s.close();
+});
+
 test("存储位置：迁移配置和账本到新目录，面板立即可用", async () => {
   const A = mkdtempSync(join(tmpdir(), "rv-dd-a-"));
   const B = mkdtempSync(join(tmpdir(), "rv-dd-b-"));
