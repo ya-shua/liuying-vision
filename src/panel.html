@@ -263,6 +263,7 @@
 <div class="layout">
   <div class="sidebar">
     <div class="brand"><span class="mark"></span>留影<small>视觉接入</small></div>
+    <a class="nav on" data-view="overview">总览</a>
     <a class="nav" data-view="archive">留档</a>
     <div class="sep"></div>
     <a class="nav" data-view="models">模型接入</a>
@@ -273,8 +274,8 @@
     </div>
   <div class="main">
 
-  <!-- ══════ 留档 ══════ -->
-    <div class="view on" id="view-archive">
+  <!-- ══════ 总览 ══════ -->
+  <div class="view on" id="view-overview">
     <div class="banner" id="config-banner" style="display:none">
       <span class="b-text"></span>
     </div>
@@ -286,6 +287,28 @@
       <div class="card-desc">哪些链路通、哪些还缺，一眼看清。</div>
       <div class="check-list" id="check-list"></div>
     </div>
+
+    <div class="card">
+      <div class="card-title" id="test-title">③ 试一张图 —— 接好后在这里验证</div>
+      <div class="card-desc">只描述不保存 —— 纯验证接通没通。</div>
+      <div class="row">
+        <input type="text" id="test-url" placeholder="https://…jpg" style="flex:1;min-width:240px">
+        <button class="btn primary" id="test-go">看一眼</button>
+      </div>
+      <div class="result" id="test-result">
+        <div class="desc" id="test-desc"></div>
+        <div class="pts" id="test-pts"></div>
+        <div class="head">
+          <span class="hint" id="test-ms"></span>
+          <span class="sp"></span>
+          <button class="btn" id="test-copy" style="display:none">复制描述</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ 留档 ══════ -->
+    <div class="view" id="view-archive">
 
     <div class="hint" style="margin:0 0 16px">图片 / 视频 = 原件 + 分析（存 <span id="arch-root"></span>，超额删最旧，上限在「设置」页改）；最底下是全部流水账。</div>
 
@@ -326,23 +349,6 @@
 
 <!-- ══════ 设置 ══════ -->
 <div class="view" id="view-models">
-    <div class="card">
-      <div class="card-title" id="test-title">③ 试一张图 —— 接好后在这里验证</div>
-      <div class="card-desc">只描述不保存 —— 纯验证接通没通。</div>
-      <div class="row">
-        <input type="text" id="test-url" placeholder="https://…jpg" style="flex:1;min-width:240px">
-        <button class="btn primary" id="test-go">看一眼</button>
-      </div>
-      <div class="result" id="test-result">
-        <div class="desc" id="test-desc"></div>
-        <div class="pts" id="test-pts"></div>
-        <div class="head">
-          <span class="hint" id="test-ms"></span>
-          <span class="sp"></span>
-          <button class="btn" id="test-copy" style="display:none">复制描述</button>
-        </div>
-      </div>
-    </div>
 
 
 <div class="sec-title" style="margin-top:2px">声音转文字</div>
@@ -610,7 +616,7 @@ function toast(msg, kind = '') {
 
 /* 左侧导航：五视图直连（旧书签 #func/#access/#settings 等自动纠正） */
 function showTab(view) {
-  if (view === 'func') view = 'archive';
+  if (view === 'func') view = 'overview';
   if (view === 'access' || view === 'settings') view = 'models';
   if (view === 'outputs' || view === 'photo' || view === 'video') { /* 独立视图 */ }
   if (!$('view-' + view)) return;
