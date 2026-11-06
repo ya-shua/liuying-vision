@@ -60,6 +60,15 @@
   .sidebar a.nav:hover { color: var(--text); background: var(--glass-hover); }
   .sidebar a.nav.on { color: var(--eye); background: rgba(255,212,121,.09); border-left-color: var(--eye); }
   .sidebar .sep { height: 1px; background: var(--border-soft); margin: 9px 8px; }
+  /* 左下角更新提示：有新 release 才亮 */
+  #update-badge {
+    margin: 10px 6px 0; padding: 10px 12px; border-radius: 10px;
+    background: rgba(255,212,121,.08); border: 1px solid rgba(255,212,121,.35);
+    font-size: 12px; color: var(--text);
+  }
+  #update-badge .ub-title { font-weight: 600; margin-bottom: 3px; color: var(--eye); }
+  #update-badge .ub-note { color: var(--dim); font-size: 11px; margin-bottom: 8px; max-height: 60px; overflow: auto; white-space: pre-wrap; }
+  #update-badge .btn { font-size: 12px; padding: 5px 0; }
   .sidebar .grow { flex: 1; }
   .main { padding: 24px 30px 48px; max-width: 940px; width: 100%; box-sizing: border-box; }
   .close-btn { padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
@@ -262,6 +271,12 @@
     <a class="nav" data-view="video">视频调节</a>
     <a class="nav" data-view="outputs">输出去向</a>
     <div class="grow"></div>
+    <div id="update-badge" style="display:none">
+      <div class="ub-title">新版本 <span id="ub-ver"></span> 可用</div>
+      <div class="ub-note" id="ub-note"></div>
+      <button class="btn gold" id="ub-go" style="width:100%">一键更新</button>
+      <div class="hint" id="ub-state" style="margin-top:6px"></div>
+    </div>
     </div>
   <div class="main">
 
@@ -1359,6 +1374,51 @@ $('d-save').addEventListener('click', async () => {
 });
 $('seen-refresh').addEventListener('click', loadSeen);
 
+
+/* 左下角更新提示：GitHub 有新 release 才亮；网络不通就当没有，绝不连累面板 */
+async function checkUpdate() {
+  try {
+    const r = await fetch('/api/update/check').then((x) => x.json());
+    if (!r.hasUpdate) return;
+    $('ub-ver').textContent = r.latest;
+    const note = (r.notes || '').trim().split('\n').find(Boolean) || '';
+    $('ub-note').textContent = note.slice(0, 80);
+    $('update-badge').style.display = '';
+  } catch {}
+}
+$('ub-go').addEventListener('click', async () => {
+  const st = $('ub-state'), btn = $('ub-go');
+  btn.disabled = true;
+  st.textContent = '下载新版本中…（几十秒）';
+  try {
+    const r = await fetch('/api/update/run', { method: 'POST' }).then((x) => x.json());
+    if (r.ok) {
+      btn.style.display = 'none';
+      $('ub-note').textContent = '';
+      const ok = document.createElement('div');
+      ok.className = 'ok-text';
+      ok.textContent = '✓ 已更新到 v' + r.version;
+      const restart = document.createElement('button');
+      restart.className = 'btn gold';
+      restart.style.cssText = 'width:100%;margin-top:6px';
+      restart.textContent = '重启面板生效';
+      restart.addEventListener('click', async () => {
+        restart.disabled = true;
+        restart.textContent = '正在关闭…';
+        await fetch('/api/shutdown', { method: 'POST' }).catch(() => {});
+        restart.textContent = '面板已关闭，用 留影面板.vbs 重新打开';
+      });
+      st.append(ok, restart);
+    } else {
+      st.textContent = r.error || '更新失败';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    st.textContent = '更新失败：' + (e?.message ?? e);
+    btn.disabled = false;
+  }
+});
+setTimeout(checkUpdate, 2000);
 
 const initView = location.hash.slice(1);
 if (initView) showTab(initView);

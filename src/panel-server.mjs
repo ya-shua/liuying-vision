@@ -19,6 +19,7 @@ import { fetchImage, describeVideo, isVideoUrl, repairMojibake, resolveFfmpegPat
 import { describeImage } from './describe.mjs';
 import { ffmpegAvailable } from './video.mjs';
 import { MODELS, ASR_MODELS } from './models.mjs';
+import { checkUpdate, runUpdate, currentVersion } from './update.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = dirname(HERE);
@@ -237,6 +238,7 @@ export async function createPanelServer({
           ok: true,
           dataDir,
           configPath,
+          version: currentVersion(ROOT),
           usage: {
             seenToday: store.seenToday(new Date().setHours(0, 0, 0, 0)),
             totalSeen: store.total(),
@@ -302,6 +304,17 @@ export async function createPanelServer({
           result.push(map[key] || { day: key, total: 0, videos: 0, images: 0, tokens: 0 });
         }
         return json(res, 200, { ok: true, days: result });
+      }
+
+      // 更新检查：对比 GitHub 最新 release 和本地版本。失败静默（hasUpdate:false），不连累面板。
+      if (p === '/api/update/check' && req.method === 'GET') {
+        return json(res, 200, { ok: true, ...(await checkUpdate(ROOT)) });
+      }
+
+      // 一键更新：下载最新 release 的 tarball 覆盖插件目录（data/bin/.git 不动），重启面板生效
+      if (p === '/api/update/run' && req.method === 'POST') {
+        const r = await runUpdate(ROOT, dataDir);
+        return json(res, r.ok ? 200 : 400, r);
       }
 
       if (p === '/api/seen' && req.method === 'GET') {
