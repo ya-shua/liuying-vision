@@ -1381,8 +1381,8 @@ async function checkUpdate() {
     const r = await fetch('/api/update/check').then((x) => x.json());
     if (!r.hasUpdate) return;
     $('ub-ver').textContent = r.latest;
-    const note = (r.notes || '').trim().split('\n').find(Boolean) || '';
-    $('ub-note').textContent = note.slice(0, 80);
+    const note = (r.notes || '').trim().split('\n').filter((l) => l.trim() && !l.startsWith('自 ')).join('；');
+    $('ub-note').textContent = note.slice(0, 120);
     $('update-badge').style.display = '';
   } catch {}
 }
