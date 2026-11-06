@@ -231,6 +231,8 @@
   .s-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
            font-size: 12px; background: #3a4150; color: #9aa3ad; flex: 0 0 auto; }
   .s-dot.ok { background: #2e9e44; color: #fff; }
+  .arch-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 980px) { .arch-cols { grid-template-columns: 1fr; } }
 
   /* 设置页：左模块导航 + 右内容 */
   .settings-body { display: grid; grid-template-columns: 128px 1fr; gap: 22px; align-items: start; }
@@ -248,7 +250,6 @@
 <div class="layout">
   <div class="sidebar">
     <div class="brand"><span class="mark"></span>留影<small>视觉接入</small></div>
-    <a class="nav on" data-view="func">功能</a>
     <a class="nav" data-view="archive">留档</a>
     <div class="sep"></div>
     <a class="nav" data-sec="sec-access">模型接入</a>
@@ -259,79 +260,38 @@
     </div>
   <div class="main">
 
-  <!-- ══════ 功能展示 ══════ -->
-  <div class="view on" id="view-func">
+  <!-- ══════ 留档 ══════ -->
+    <div class="view on" id="view-archive">
     <div class="banner" id="config-banner" style="display:none">
       <span class="b-text"></span>
-    </div>
-
-    <div class="card" id="setup-card">
-      <div class="card-title">开始使用 · 两步接好</div>
-      <div class="card-desc">接好之后：QQ 里的图片和视频自动被看一眼，描述交给你选的地方。</div>
-      <div class="setup-step">
-        <div class="s-head"><span class="s-dot" id="s1-dot">1</span><b>填模型 key</b><span class="hint" id="s1-state"></span></div>
-        <div class="row">
-          <input type="text" id="su-key" placeholder="粘贴 key —— 免费 = 不要钱，但要去 open.bigmodel.cn 注册账号拿（手机号，1 分钟）" style="flex:1;min-width:240px">
-          <button class="btn gold" id="su-save">保存接入</button>
-        </div>
-      </div>
-      <div class="setup-step">
-        <div class="s-head"><span class="s-dot" id="s2-dot">2</span><b>选描述的去向</b><span class="hint" id="s2-state"></span></div>
-        <div class="row">
-          <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="su-ringmind" checked> 存进记忆库（自动找库）</label>
-          <span class="hint">要别的去向（JSONL / Webhook…）去「设置 → 输出去向」</span>
-        </div>
-        <div class="row"><button class="btn gold" id="su-save-outs">保存去向</button></div>
-      </div>
-    </div>
-
-    <div class="banner" id="done-banner" style="display:none">
-      <span class="b-text">✓ 已接好 —— 消息里的图和视频会被自动看一眼。想调细节去「设置」页。</span>
     </div>
 
     <div class="metrics" id="metrics"></div>
 
     <div class="card" id="check-card">
       <div class="card-title">自检</div>
-      <div class="card-desc">一眼看出哪条链路是通的 —— 不用等真的出错才发现。</div>
+      <div class="card-desc">哪些链路通、哪些还缺，一眼看清。</div>
       <div class="check-list" id="check-list"></div>
     </div>
 
-    <div class="card">
-      <div class="card-title" id="test-title">③ 试一张图 —— 接好后在这里验证</div>
-      <div class="card-desc">只描述不保存 —— 纯验证接通没通。</div>
-      <div class="row">
-        <input type="text" id="test-url" placeholder="https://…jpg" style="flex:1;min-width:240px">
-        <button class="btn primary" id="test-go">看一眼</button>
-      </div>
-      <div class="result" id="test-result">
-        <div class="desc" id="test-desc"></div>
-        <div class="pts" id="test-pts"></div>
-        <div class="head">
-          <span class="hint" id="test-ms"></span>
-          <span class="sp"></span>
-          <button class="btn" id="test-copy" style="display:none">复制描述</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══════ 留档 ══════ -->
-    <div class="view" id="view-archive">
     <div class="hint" style="margin:0 0 16px">图片 / 视频 = 原件 + 分析（存 <span id="arch-root"></span>，超额删最旧，上限在「设置」页改）；最底下是全部流水账。</div>
     <div class="row" style="margin-bottom:16px">
       <button class="btn" id="arch-refresh">刷新</button>
     </div>
 
-    <div class="sec-title">图片留档 <span class="count" id="arch-count-images"></span></div>
-    <div id="arch-grid-images" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px"></div>
+    <div class="arch-cols">
+  <div>
+    <div class="sec-title" style="margin-top:0">图片留档 <span class="count" id="arch-count-images"></span></div>
+    <div id="arch-grid-images" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px"></div>
     <div class="hint" id="arch-empty-images" style="display:none">还没有图片留档 —— 看过图之后，这里就有原图和分析。</div>
-
-    <div class="sec-title" style="margin-top:24px">视频留档 <span class="count" id="arch-count-videos"></span></div>
-    <div id="arch-grid-videos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
-    <div class="hint" id="arch-empty-videos" style="display:none">还没有视频留档 —— 看过视频之后，这里就有抽帧和分析。</div>
-
-    <div class="sec-title" style="margin-top:24px">全部记录 <span class="count" id="seen-count"></span></div>
+  </div>
+  <div>
+    <div class="sec-title" style="margin-top:0">视频留档 <span class="count" id="arch-count-videos"></span></div>
+    <div id="arch-grid-videos" style="display:grid;gap:12px"></div>
+    <div class="hint" id="arch-empty-videos" style="display:none">还没有视频留档 —— 看过视频之后，这里就有抽帧和转写。</div>
+  </div>
+</div>
+<div class="sec-title" style="margin-top:24px">全部记录 <span class="count" id="seen-count"></span></div>
     <div class="row" style="margin-bottom:10px">
       <button class="btn" id="seen-refresh">刷新</button>
     </div>
@@ -359,7 +319,25 @@
       </div>
     </div>
 
-    </div><!-- /sec-access -->
+        <div class="card">
+      <div class="card-title">试看一张图（只试不存）</div>
+      <div class="card-desc">粘一个图链，当场让模型看一眼 —— 纯验证接通没通，不进去向、不进账本、不留档。</div>
+      <div class="row">
+        <input type="text" id="test-url" placeholder="https://…jpg" style="flex:1;min-width:240px">
+        <button class="btn primary" id="test-go">看一眼</button>
+      </div>
+      <div class="result" id="test-result">
+        <div class="desc" id="test-desc"></div>
+        <div class="pts" id="test-pts"></div>
+        <div class="head">
+          <span class="hint" id="test-ms"></span>
+          <span class="sp"></span>
+          <button class="btn" id="test-copy" style="display:none">复制描述</button>
+        </div>
+      </div>
+    </div>
+
+</div><!-- /sec-access -->
     <div id="sec-photo">
     <div class="sec-title" style="margin-top:2px">照片调节</div>
     <div class="card">
@@ -573,6 +551,7 @@ function toast(msg, kind = '') {
 
 /* 左侧导航：功能/留档 一级，四个设置模块直达（旧书签 #access 等自动落进设置页对应模块） */
 function showTab(view, sec) {
+  if (view === 'func') view = 'archive'; // 旧书签
   if (['access', 'outputs', 'photo', 'video'].includes(view)) { sec = sec || view; view = 'settings'; }
   if (!$('view-' + view)) return;
   if (sec && !sec.startsWith('sec-')) sec = 'sec-' + sec; // 旧书签传短名（#video），侧栏传完整 id（sec-video）
@@ -610,7 +589,7 @@ function archCard(it, kind) {
   const card = document.createElement('div');
   card.className = 'card';
   card.style.cssText = 'margin:0;padding:8px';
-  const meta = [it.at ? new Date(Number(it.at)).toLocaleString() : '', it.model ?? '', kind === 'videos' ? (it.frameCount ?? 0) + ' 帧' : '']
+  const meta = [it.at ? new Date(Number(it.at)).toLocaleString() : '', it.model ?? '', kind === 'videos' ? (it.frameCount ?? 0) + ' 帧' : '', it.asrModel ? '转写 ' + it.asrModel : '']
     .filter(Boolean).join(' · ');
   if (kind === 'images') {
     const src = '/media/images/' + encodeURIComponent(it.file);
@@ -705,7 +684,6 @@ async function loadStatus() {
   if (vs) vs.textContent = r.ffmpeg ? '已检测到 ffmpeg ✓' : '未检测到 ffmpeg —— 视频会自动跳过（插件自带 bin\\ffmpeg.exe、或 ffmpeg.org 下载后填完整路径）';
   fillConfig(cfg);
   renderCheck(cfg, r, outs);
-  renderSetup(cfg, r); // 放在 fillConfig 之后：currentCfg 要先就位，接入清单的"保存接入"才有地址/模型可用
 }
 
 /* 自检：把「通不通」摆出来，不用等真出错 */
@@ -783,298 +761,6 @@ function renderCheck(cfg, r, outs) {
       v.textContent = '没用记忆库输出（不影响使用）';
     }
   }).catch(() => {});
-}
-
-/* 新手接入清单：两步各自打勾，全好之后功能页换成仪表盘 */
-function renderSetup(cfg, r) {
-  const chs = cfg.channels?.length ? cfg.channels : [];
-  const hasKey = !!cfg.apiKeySet || chs.some((c) => c.apiKeySet);
-  const needsKey = (chs.length ? chs : [{ baseUrl: cfg.baseUrl }]).some((c) => /bigmodel|openai\.com|dashscope|siliconflow|openrouter|deepseek|moonshot/i.test(c.baseUrl || ''));
-  const s1 = chs.length > 0 && (hasKey || !needsKey);
-  const outs = cfg.outputs ?? [];
-  const s2 = outs.length > 0;
-  const done = s1 && s2;
-  $('setup-card').style.display = done ? 'none' : 'block';
-  $('done-banner').style.display = done ? 'flex' : 'none';
-  $('metrics').style.display = done ? '' : 'none';
-  $('check-card').style.display = done ? '' : 'none';
-  const d1 = $('s1-dot');
-  d1.className = 's-dot' + (s1 ? ' ok' : '');
-  d1.textContent = s1 ? '✓' : '1';
-  $('s1-state').textContent = s1
-    ? '已接入 ' + esc(chs.map((c) => c.model || '?').join(' / ')) + (hasKey ? ' · key ✓' : ' · 免密')
-    : (chs.length ? '缺 key —— 上面粘上再点一次保存' : '还没接');
-  const d2 = $('s2-dot');
-  d2.className = 's-dot' + (s2 ? ' ok' : '');
-  d2.textContent = s2 ? '✓' : '2';
-  $('s2-state').textContent = s2 ? '去向：' + outs.map((o) => OUT_TYPES[o.type] || o.type).join(' / ') : '还没选';
-  $('test-title').textContent = done ? '试看一张图（只试不存）' : '③ 试一张图 —— 接好后在这里验证';
-}
-
-/* 接入清单的两步 */
-$('su-save').addEventListener('click', async () => {
-  const key = $('su-key').value.trim();
-  const r = await fetch('/api/config', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ channels: [{ baseUrl: currentCfg.baseUrl, model: currentCfg.model, apiKey: key }], enabled: true }),
-  }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
-  if (r.ok) { $('su-key').value = ''; loadStatus(); toast('已接入', 'ok'); }
-  else toast('没接上：' + (r.error || '?'), 'bad');
-});
-$('su-save-outs').addEventListener('click', async () => {
-  let outputs = [];
-  if ($('su-ringmind').checked) {
-    const d = await fetch('/api/discover-ring').then((x) => x.json()).catch(() => null);
-    if (d?.ok && d.dbPath) outputs = [{ type: 'ringmind', enabled: true, dbPath: d.dbPath, name: d.name ?? '' }];
-    else { toast('没找到记忆库 —— 去「设置 → 输出去向」手填库文件', 'bad'); return; }
-  }
-  const r = await fetch('/api/config', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ outputs }),
-  }).then((x) => x.json()).catch((e) => ({ ok: false, error: String(e) }));
-  if (r.ok) { loadStatus(); toast(outputs.length ? '去向已保存' : '已清空去向', 'ok'); }
-  else toast('没存成：' + (r.error || '?'), 'bad');
-});
-
-function ringName(r) {
-  return { core: '圆心', ring1: '一圈', ring2: '二圈', ring3: '三圈', ring4: '闲聊圈', ring5: '模糊圈', recall: '回忆圈' }[r] || r;
-}
-
-function outBadge(o) {
-  const name = OUT_TYPES[o.type] || o.type;
-  if (o.ok) {
-    const extra = o.memoryId ? ' · 记忆 ' + esc(String(o.memoryId).slice(0, 10)) : (o.file ? ' · ' + esc(o.file.split(/[\\/]/).pop()) : (o.status ? ' · ' + o.status : ''));
-    return `<span class="out-badge ok">${esc(name)}✓${extra}</span>`;
-  }
-  return `<span class="out-badge bad" title="${esc(o.error || '')}">${esc(name)}✗</span>`;
-}
-
-async function loadSeen() {
-  const r = await fetch('/api/seen?limit=50').then((x) => x.json()).catch(() => null);
-  const body = $('seen-rows');
-  if (!r || !r.ok) { body.innerHTML = '<tr><td colspan="5" class="empty">' + esc(r?.error || '读不到') + '</td></tr>'; return; }
-  $('seen-count').textContent = '共 ' + r.rows.length + ' 条';
-  body.innerHTML = r.rows.length
-    ? r.rows.map((v) =>
-        `<tr><td class="muted" style="white-space:nowrap">${clock(v.created_at)}</td>` +
-        `<td>${v.kind === 'video' ? '<span class="out-badge">视频·' + esc(String(v.frames ?? '?')) + '帧</span> ' : ''}${esc(v.desc)}</td>` +
-        `<td>${(v.outputs || []).map(outBadge).join('') || '<span class="muted">（无输出）</span>'}</td>` +
-        `<td class="muted" style="text-align:right;white-space:nowrap">${fmtMs(v.ms)}</td>` +
-        `<td class="url" title="${esc(v.url)}">${esc(v.url.length > 44 ? v.url.slice(0, 44) + '…' : v.url)}</td></tr>`
-      ).join('')
-    : '<tr><td colspan="5" class="empty">还没看过任何图。QQ 里发一张，或用上面的「试看」。</td></tr>';
-}
-
-  /* 模型目录 + 并发通道列表（每条通道 = 一个免费模型 = 一条限速） */
-  let MODELS_CACHE = [];
-  const fmtMs = (ms) => ms == null ? '—' : (ms < 1000 ? ms + 'ms' : (ms / 1000).toFixed(1) + 's');
-  async function ensureCatalog() {
-    if (MODELS_CACHE.length) return;
-    const r = await fetch('/api/models').then((x) => x.json()).catch(() => null);
-    MODELS_CACHE = r?.models ?? [];
-  }
-  const chOptions = (picked) => {
-    // 按档位分组:免费 / 性价比 / 高性能(★ = 同档佼佼者);模型名前带厂商名
-    const tiers = ['免费', '性价比', '高性能'];
-    let groups = '';
-    for (const t of tiers) {
-      const ms = MODELS_CACHE.filter((m) => (m.tier || '免费') === t);
-      if (!ms.length) continue;
-      const gLabel = t === '免费' ? '免费' : t + '（★ = 同档佼佼者）';
-      groups += '<optgroup label="' + esc(gLabel) + '">' + ms.map((m) =>
-        `<option value="${esc(m.baseUrl + '|' + m.id)}"${(m.baseUrl + '|' + m.id) === picked ? ' selected' : ''}>[${esc(m.tier)}] ${esc(m.vendor)} · ${esc(m.label)} · 延迟${esc(m.latency)}${m.pick ? ' ★' : ''}</option>`
-      ).join('') + '</optgroup>';
-    }
-    return groups + `<option value="__custom"${picked === '__custom' ? ' selected' : ''}>自定义（手填地址和模型）</option>`;
-  };
-
-  function chHint(m) {
-    return m ? `${esc(m.note)}｜key 申请：<a href="${esc(m.keyUrl)}" target="_blank" style="color:var(--eye)">${esc(m.keyUrl)}</a>` : '自定义：手填下面的接口地址和模型名（任何 OpenAI 兼容视觉接口）。';
-  }
-
-  function chRowHtml(i, ch, total) {
-    const picked = ch ? ch.baseUrl + '|' + ch.model : '__custom';
-    const keyPh = ch?.apiKeySet ? '已配置（…' + esc(ch.apiKeyTail || '') + '），留空 = 不改' : '要鉴权的接口才填；本地/免费接口留空';
-    return `<div class="out-block ch-row">
-      <div class="out-head"><b>通道 ${i + 1}</b><span class="ch-hint hint"></span>${total > 1 ? '<button class="btn ch-del" type="button">删掉</button>' : ''}</div>
-      <div class="out-fields">
-        <label>快捷选择</label><select class="ch-pick">${chOptions(picked)}</select>
-        <label>接口地址</label><input type="text" class="ch-baseUrl" placeholder="OpenAI 兼容接口地址" value="${esc(ch?.baseUrl ?? '')}">
-        <label>模型</label><input type="text" class="ch-model" placeholder="模型 ID" value="${esc(ch?.model ?? '')}">
-        <label>apiKey 选填</label><input type="text" class="ch-apiKey" placeholder="${keyPh}">
-      </div>
-    </div>`;
-  }
-
-  function bindChRow(row) {
-    const pick = row.querySelector('.ch-pick');
-    const hintEl = row.querySelector('.ch-hint');
-    const sync = () => {
-      const v = pick.value;
-      if (v === '__custom') { hintEl.textContent = ''; return; }
-      const m = MODELS_CACHE.find((x) => x.baseUrl + '|' + x.id === v);
-      if (!m) { hintEl.textContent = ''; return; }
-      row.querySelector('.ch-baseUrl').value = m.baseUrl;
-      row.querySelector('.ch-model').value = m.id;
-      hintEl.innerHTML = chHint(m);
-    };
-    pick.addEventListener('change', sync);
-    sync();
-  }
-
-  /** 重排通道：编号、"删掉"按钮有无、到 4 条就把添加按钮禁用 */
-  function refreshChRows() {
-    const rows = [...document.querySelectorAll('#ch-list .ch-row')];
-    rows.forEach((row, i) => {
-      const b = row.querySelector('.out-head b');
-      if (b) b.textContent = '通道 ' + (i + 1);
-      let del = row.querySelector('.ch-del');
-      if (rows.length > 1 && !del) {
-        del = document.createElement('button');
-        del.className = 'btn ch-del';
-        del.type = 'button';
-        del.textContent = '删掉';
-        row.querySelector('.out-head').appendChild(del);
-      } else if (rows.length <= 1 && del) {
-        del.remove();
-        del = null;
-      }
-      if (del) del.onclick = () => { row.remove(); refreshChRows(); };
-    });
-    const addBtn = $('ch-add');
-    if (addBtn) addBtn.disabled = rows.length >= 4;
-  }
-
-  /* 添加通道：之前这个按钮根本没绑事件，点了没反应 */
-  $('ch-add').addEventListener('click', () => {
-    const listEl = $('ch-list');
-    const n = listEl.querySelectorAll('.ch-row').length;
-    if (n >= 4) { toast('最多 4 条通道', 'bad'); return; }
-    const wrap = document.createElement('div');
-    wrap.innerHTML = chRowHtml(n, {}, 2); // total=2：新行一定带"删掉"
-    const row = wrap.firstElementChild;
-    listEl.appendChild(row);
-    bindChRow(row);
-    refreshChRows();
-    toast('已添加通道 ' + (n + 1), 'ok');
-  });
-
-  function renderChannels(cfg) {
-    if (!MODELS_CACHE.length) { ensureCatalog().then(() => renderChannels(cfg)); return; }
-    const list = Array.isArray(cfg.channels) && cfg.channels.length
-      ? cfg.channels
-      : (cfg.baseUrl ? [{ baseUrl: cfg.baseUrl, model: cfg.model, apiKeySet: cfg.apiKeySet, apiKeyTail: cfg.apiKeyTail }] : [{}]);
-    const listEl = $('ch-list');
-    listEl.innerHTML = list.slice(0, 4).map((ch, i) => chRowHtml(i, ch, Math.max(1, Math.min(4, list.length)))).join('');
-    listEl.querySelectorAll('.ch-row').forEach(bindChRow);
-    refreshChRows();
-  }
-
-  function collectChannels() {
-    return [...document.querySelectorAll('#ch-list .ch-row')]
-      .map((row) => ({
-        baseUrl: row.querySelector('.ch-baseUrl').value.trim(),
-        model: row.querySelector('.ch-model').value.trim(),
-        apiKey: row.querySelector('.ch-apiKey').value.trim(),
-      }))
-      .filter((c) => c.baseUrl && c.model);
-  }
-
-/* 回填两张表单 */
-/* 记忆库自动连接：读环形的心自己的 data-location.json，不用手抄路径 */
-let ringDiscovered = false;
-async function discoverRing() {
-  const r = await fetch('/api/discover-ring').then((x) => x.json()).catch(() => null);
-  if (r?.ok && r.dbPath) {
-    $('o-ringmind-db').value = r.dbPath;
-    if (r.name) $('o-ringmind-name').value = r.name;
-    return true;
-  }
-  return false;
-}
-
-  let ASR_CACHE = [];
-  async function ensureAsrCatalog() {
-    if (ASR_CACHE.length) return;
-    const r = await fetch('/api/models').then((x) => x.json()).catch(() => null);
-    ASR_CACHE = r?.asr ?? [];
-  }
-  async function syncAsrPick(cfg) {
-    await ensureAsrCatalog(); // 之前这函数从没被调用 —— 快捷选择永远只有"自定义"，新用户没法快速选 Groq
-    const pick = $('a-pick');
-    if (!pick.options.length) {
-      pick.innerHTML = ASR_CACHE.map((m) =>
-        `<option value="${esc(m.baseUrl + '|' + m.id)}">${esc(m.vendor)} · ${esc(m.label)} · ${m.noKey ? '免费（免 key · 本机）' : m.free ? '免费（要注册拿 key）' : '收费'} · 延迟${esc(m.latency)}</option>`
-      ).join('') + '<option value="__custom">自定义（手填地址和模型）</option>';
-      pick.addEventListener('change', () => {
-        const v = pick.value;
-        if (v === '__custom') { $('a-hint').textContent = '手填语音接口和模型名。'; return; }
-        const m = ASR_CACHE.find((x) => x.baseUrl + '|' + x.id === v);
-        if (!m) return;
-        $('a-baseUrl').value = m.baseUrl;
-        $('a-model').value = m.id;
-        $('a-hint').innerHTML = chHint(m);
-      });
-    }
-    const cur = (cfg.asr?.baseUrl || '') + '|' + (cfg.asr?.model || '');
-    for (const o of pick.options) o.selected = o.value === cur;
-    const hit = ASR_CACHE.find((m) => m.baseUrl + '|' + m.id === cur);
-    $('a-hint').innerHTML = hit ? chHint(hit) : '自定义：手填语音接口和模型名。';
-  }
-
-function fillConfig(cfg) {
-  $('c-enabled').value = cfg.enabled ? 'true' : 'false';
-  renderChannels(cfg);
-  $('c-dailyCap').value = cfg.dailyCap;
-  $('c-perMessage').value = cfg.perMessage;
-  const find = (type) => (cfg.outputs ?? []).find((o) => o.type === type);
-  const rm = find('ringmind');
-  // 只显示已配置的模块；没配的不摆出来（要加用上面的「添加去向」）
-  for (const t of ['ringmind', 'sqlite', 'jsonl', 'markdown', 'webhook', 'custom']) {
-    const f2 = find(t);
-    outShow(t, !!f2);
-  }
-  $('o-ringmind-on').checked = !!(rm && rm.enabled !== false);
-  $('o-ringmind-db').value = rm?.dbPath ?? '';
-  if (!rm && !ringDiscovered && !$('o-ringmind-db').value) {
-    ringDiscovered = true; // 只自动找一次：找到就静默填上，用户仍可改
-    discoverRing();
-  }
-  $('o-ringmind-name').value = rm?.name ?? '';
-  $('o-ringmind-ring').value = rm?.ring ?? '';
-  const jl = find('jsonl');
-  $('o-jsonl-on').checked = !!(jl && jl.enabled !== false);
-  $('o-jsonl-file').value = jl?.file ?? '';
-  const wh = find('webhook');
-  $('o-webhook-on').checked = !!(wh && wh.enabled !== false);
-  $('o-webhook-url').value = wh?.url ?? '';
-  const sq = find('sqlite');
-  $('o-sqlite-on').checked = !!(sq && sq.enabled !== false);
-  $('o-sqlite-db').value = sq?.dbPath ?? '';
-  $('o-sqlite-table').value = sq?.table ?? '';
-  const md = find('markdown');
-  $('o-md-on').checked = !!(md && md.enabled !== false);
-  $('o-md-file').value = md?.file ?? '';
-  const cu = find('custom');
-  $('o-custom-on').checked = !!(cu && cu.enabled !== false);
-  $('o-custom-file').value = cu?.file ?? '';
-  $('v-enabled').value = (cfg.video?.enabled !== false) ? 'true' : 'false';
-  $('v-frames').value = cfg.video?.frames ?? 3;
-  $('v-mode').value = cfg.video?.mode ?? 'interval';
-  $('v-interval').value = cfg.video?.intervalSec ?? 5;
-  $('v-ffmpeg').value = cfg.video?.ffmpegPath ?? 'ffmpeg';
-  $('v-maxmb').value = Math.round((cfg.video?.maxBytes ?? 67108864) / 1048576);
-  $('v-retainFrames').value = cfg.retain?.videoFrames ?? 10;
-  $('c-retainImages').value = cfg.retain?.images ?? 50;
-  $('p-maxmb').value = Math.round((cfg.maxBytes ?? 8388608) / 1048576);
-  $('a-enabled').value = (cfg.asr?.enabled && cfg.asr?.baseUrl) ? 'true' : 'false';
-  $('a-baseUrl').value = cfg.asr?.baseUrl ?? '';
-  $('a-model').value = cfg.asr?.model ?? 'whisper-large-v3';
-  $('a-apiKey').value = '';
-  $('a-apiKey').placeholder = (cfg.asr?.apiKeySet || cfg.asr?.apiKey) ? '已配置，留空 = 不改' : '免密服务留空';
-  $('a-maxsec').value = cfg.asr?.maxSeconds ?? 120;
-  if ($('d-dir') && document.activeElement !== $('d-dir')) $('d-dir').value = cfg.dataDir || '';
-  syncAsrPick(cfg);
 }
 
 /* 输出去向：选类型添加，不需要的删掉 */
@@ -1333,6 +1019,7 @@ const initView = location.hash.slice(1);
 if (initView) showTab(initView);
 loadStatus();
 loadSeen();
+loadArchive();
 </script>
 </body>
 </html>

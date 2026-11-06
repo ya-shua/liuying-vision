@@ -495,9 +495,13 @@ export async function visionNote(input, opts = {}) {
 
       // 留档：图=原图+分析，视频=抽帧+分析（best-effort，挂了不影响任何主流程）
       if (archiveSrc) {
+        const asrOn = cfg.asr?.enabled && cfg.asr?.baseUrl;
         archiveMedia(cfg, {
           kind, hash, ...archiveSrc,
-          info: { desc, points, url, chatKey: key, sender, at, model: ch.model, ms, ...(kind === 'video' ? { frameCount: frames } : {}) },
+          info: {
+            desc, points, url, chatKey: key, sender, at, model: ch.model, ms,
+            ...(kind === 'video' ? { frameCount: frames, ...(asrOn ? { asrModel: cfg.asr.model } : {}) } : {}),
+          },
         });
       }
 
