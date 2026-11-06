@@ -382,9 +382,8 @@
       <div class="card-title">视频 · 声音转文字</div>
       <div class="card-desc">把视频里的人声转成文字拼进描述（可选，没配 = 只看画面听不到）。免费路线 = Groq：每天免费转 2000 条、不要钱，但<b>必须注册账号拿 key</b>（console.groq.com，邮箱或 Google 登录，1 分钟）。不想注册 → 本地 whisper（免 key，要装软件）。别的转写服务 → 快捷选择拉到最底选「自定义」（任何 OpenAI 兼容 /audio/transcriptions 接口）。没 key 时视频照常看，只是听不到。</div>
       <div class="form">
-        <label>声音转文字</label>
-        <label>快捷选择</label><select id="a-pick"></select>
-        <select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
+        <label>声音转文字</label><select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
+        <label>快捷选择</label><select id="a-pick" style="grid-column:1 / -1"></select>
         <label>语音接口</label><input type="text" id="a-baseUrl" placeholder="https://api.groq.com/openai/v1 或本地服务地址">
         <label>语音模型</label><input type="text" id="a-model" placeholder="whisper-large-v3">
         <label>语音 key（免费也要注册拿）</label><input type="text" id="a-apiKey" placeholder="粘 Groq 的 key —— console.groq.com 注册就有">
@@ -558,6 +557,7 @@ function showTab(view) {
   $('view-' + view).classList.add('on');
   if (location.hash.slice(1) !== view) history.replaceState(null, '', '#' + view);
   if (view === 'archive') loadArchive();
+  if (view === 'video') { ensureAsrCatalog().then(() => syncAsrPick(currentCfg || {})).catch(() => {}); }
 }
 document.querySelectorAll('.sidebar a.nav[data-view]').forEach((t) => {
   t.addEventListener('click', () => showTab(t.dataset.view));
@@ -895,11 +895,19 @@ async function discoverRing() {
   }
   async function syncAsrPick(cfg) {
     await ensureAsrCatalog(); // 之前这函数从没被调用 —— 快捷选择永远只有"自定义"，新用户没法快速选 Groq
+    if (!ASR_CACHE.length) return; // 目录没拉到（网络抖动）—— 下次切到本页会重试
     const pick = $('a-pick');
     if (!pick.options.length) {
-      pick.innerHTML = ASR_CACHE.map((m) =>
-        `<option value="${esc(m.baseUrl + '|' + m.id)}">${esc(m.vendor)} · ${esc(m.label)} · ${m.noKey ? '免费（免 key · 本机）' : m.free ? '免费（要注册拿 key）' : '收费'} · 延迟${esc(m.latency)}</option>`
-      ).join('') + '<option value="__custom">自定义（手填地址和模型）</option>';
+      const tiers = ['免费', '性价比', '高性能', '本地'];
+      let groups = '';
+      for (const tier of tiers) {
+        const list = ASR_CACHE.filter((m) => (m.tier || '免费') === tier);
+        if (!list.length) continue;
+        groups += `<optgroup label="${tier}">` + list.map((m) =>
+          `<option value="${esc(m.baseUrl + '|' + m.id)}">${esc(m.vendor)} · ${esc(m.label)} · ${m.noKey ? '免 key' : m.free ? '免费（要注册拿 key）' : '收费'} · 延迟${esc(m.latency)}</option>`
+        ).join('') + '</optgroup>';
+      }
+      pick.innerHTML = groups + '<option value="__custom">自定义（手填地址和模型）</option>';
       pick.addEventListener('change', () => {
         const v = pick.value;
         if (v === '__custom') { $('a-hint').textContent = '手填语音接口和模型名。'; return; }

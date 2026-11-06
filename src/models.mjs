@@ -98,9 +98,10 @@ export function findModel(id) {
 
 /** 语音转文字目录（OpenAI 兼容 /audio/transcriptions）—— 视频卡「声音转文字」的快捷选择 */
 export const ASR_MODELS = [
+  // ── 免费 ──
   {
     tier: '免费',
-    free: true, // 之前没有 free 字段，下拉全显示成"收费"
+    free: true,
     id: 'whisper-large-v3',
     label: 'Whisper large-v3',
     vendor: 'Groq',
@@ -108,6 +109,17 @@ export const ASR_MODELS = [
     latency: '低',
     keyUrl: 'https://console.groq.com',
     note: '每天免费转 2000 条，不要钱；要注册账号拿 key',
+  },
+  {
+    tier: '免费',
+    free: true,
+    id: 'whisper-large-v3-turbo',
+    label: 'Whisper large-v3-turbo',
+    vendor: 'Groq',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    latency: '很低',
+    keyUrl: 'https://console.groq.com',
+    note: '同额度，速度更快；同一个 Groq key 直接用',
   },
   {
     tier: '免费',
@@ -120,8 +132,33 @@ export const ASR_MODELS = [
     keyUrl: 'https://cloud.siliconflow.cn',
     note: '免费；中文识别好，自带标点；要注册账号拿 key',
   },
+  // ── 性价比 ──
   {
-    tier: '免费',
+    tier: '性价比',
+    free: false,
+    id: 'whisper-1',
+    label: 'Whisper v1',
+    vendor: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    latency: '中',
+    keyUrl: 'https://platform.openai.com/api-keys',
+    note: '/usr/bin/bash.006/分钟，效果稳定；要海外支付方式',
+  },
+  // ── 高性能 ──
+  {
+    tier: '高性能',
+    free: false,
+    id: 'gpt-4o-transcribe',
+    label: 'GPT-4o 转写',
+    vendor: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    latency: '低',
+    keyUrl: 'https://platform.openai.com/api-keys',
+    note: '转写质量最好，按量计费；要海外支付方式',
+  },
+  // ── 本地 ──
+  {
+    tier: '本地',
     free: true,
     noKey: true, // 本机服务，完全不用 key
     id: 'whisper-large-v3',
