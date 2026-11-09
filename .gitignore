@@ -7,7 +7,9 @@ src/data/
 node-path.txt
 
 # 内部设计文档（暂不随插件发布）
-docs/
+# 但 docs/对接.md 是给外部看的对接契约，必须跟着插件走（metadata.contract 指着它）
+docs/*
+!docs/对接.md
 
 # 系统文件
 .DS_Store

@@ -3,6 +3,8 @@
  *
  * 只监听本机的小服务：
  *   GET  /            面板页
+ *   GET  /api/health  只读探活（对接契约：id/version/uptime，免 token）
+ *   GET  /api/manifest 只读身份 + 运行态（metadata 原样 + 实际端口/pid/启动时间，免 token）
  *   GET  /api/status  状态 + 用量（打码 key）
  *   GET  /api/seen    最近看过的图（eye.db）
  *   POST /api/test    试看一张图（只描述，不进任何输出、不占日限）
@@ -25,6 +27,31 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = dirname(HERE);
 const PANEL_HTML = join(HERE, 'panel.html');
 const POINTER_FILE = join(ROOT, 'data-dir.json');
+const METADATA_FILE = join(ROOT, 'metadata.json');
+
+// 进程启动时刻（不是"服务开始监听"的时刻）：跨进程重启也说得清"这活的是哪一次"
+const STARTED_AT = new Date(Date.now() - process.uptime() * 1000).toISOString();
+
+/**
+ * 仓库根 metadata.json 的原样对象（对接契约里"身份"的唯一来源）。
+ * 每次现读（几百字节），改了不用重启；读不到/坏了 → null，由调用方决定怎么回。
+ */
+function readMetadata() {
+  try {
+    let raw = readFileSync(METADATA_FILE, 'utf8');
+    if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1); // 记事本写进的 BOM，吃掉
+    const m = JSON.parse(raw);
+    return m && typeof m === 'object' && !Array.isArray(m) ? m : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 插件 id：以 metadata.json 为准（宿主就是这么认的），文件坏了才退回 eyes */
+function pluginId() {
+  const id = readMetadata()?.id;
+  return typeof id === 'string' && id.trim() ? id.trim() : 'eyes';
+}
 
 /** 读数据目录指针;没有/坏了 → null(用默认) */
 function readPointerDataDir() {
@@ -197,6 +224,7 @@ export async function createPanelServer({
   let configPath = join(dataDir, 'vision.json');
   let store = openEyeStore(dataDir);
   let storeDir = dataDir; // 迁移存储位置后会换目录，close 时要关当前那份
+  let listeningPort = port; // 真正在听的那个口（--port 0 时由系统分配，listen 后回填）
 
   const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x');
@@ -215,6 +243,36 @@ export async function createPanelServer({
         // no-store：改了面板必须刷新就生效，别让浏览器拿旧页面让人以为"改了没用"
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
         return res.end(readFileSync(PANEL_HTML));
+      }
+
+      // ── 对接契约两件套：只读、免 token、不碰任何隐私 ──
+      // 里面不能出现：key、绝对路径里的用户名、聊天内容、用户数据清单。
+
+      // 活没活。只看进程/服务本身，**不检查模型 key、ffmpeg、记忆库** ——
+      // 那些是"能力降级"，写在 metadata.capabilities / docs/对接.md 里，不该让探活变红。
+      if (p === '/api/health' && req.method === 'GET') {
+        return json(res, 200, {
+          ok: true,
+          id: pluginId(),
+          version: currentVersion(ROOT),
+          uptime_s: Math.floor(process.uptime()),
+        });
+      }
+
+      // 我是谁 + 现在怎么跑的。metadata 原样带出（一个字段都不改），
+      // 宿主拿它 + metadata.json 对 id/version，就知道"接的是不是同一个东西"。
+      if (p === '/api/manifest' && req.method === 'GET') {
+        const meta = readMetadata();
+        if (!meta) return json(res, 500, { ok: false, error: 'metadata.json 读不到或不是合法 JSON' });
+        return json(res, 200, {
+          ok: true,
+          metadata: meta,
+          runtime: {
+            port: listeningPort,
+            pid: process.pid,
+            started_at: STARTED_AT,
+          },
+        });
       }
 
       if (p === '/api/shutdown' && req.method === 'POST') {
@@ -550,6 +608,7 @@ export async function createPanelServer({
 
   await new Promise((r) => server.listen(port, host, r));
   const addr = server.address();
+  listeningPort = addr && typeof addr === 'object' ? addr.port : port; // 0 端口 → 系统分配的真端口
   const url = `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${addr.port}`;
 
   return {

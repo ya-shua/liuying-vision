@@ -1,0 +1,45 @@
+{
+  "id": "eyes",
+  "name": "留影",
+  "name_en": "Liuying",
+  "version": "1.8.0",
+  "author": "ya-shua",
+  "description": "通用视觉接入：有人发图，她先看一眼再回；配置（模型/key）在它自己的面板里。",
+  "builtin": false,
+  "kind": "app",
+  "page": "http://127.0.0.1:5188/",
+  "port": 5188,
+  "launch": {
+    "runtime": "node",
+    "entry": "src/panel.mjs",
+    "args": [
+      "--port",
+      "5188"
+    ],
+    "port": 5188,
+    "url": "http://127.0.0.1:5188/",
+    "note": "看图那套的面板：填 key、选描述去向。海螺看图用的就是这份配置。"
+  },
+  "capabilities": [
+    "看图描述：一张图 → 一句描述 + 2~4 个要点",
+    "视频抽帧看：ffmpeg 抽帧逐帧描述后合并成一条",
+    "动图（GIF）抽帧描述，按图片留档",
+    "视频音轨转文字（另配 OpenAI 兼容 ASR 与 key，可选）",
+    "多路输出扇出：记忆库 / SQLite / JSONL / Markdown / Webhook / 自定义脚本",
+    "去重、日限与用量记账（eye.db），面板可试看、翻留档、看日统计"
+  ],
+  "standalone": {
+    "works_alone": true,
+    "needs": [
+      "Node.js ≥ 22.5（用到内置 node:sqlite；仓库不带 runtime）",
+      "一个 OpenAI 兼容的视觉接口地址 + key（默认 GLM-4V-Flash，免费也要注册拿 key）",
+      "可选：ffmpeg（视频/动图抽帧、抽音轨；仓库 bin/ 自带，没有就只跳过视频）",
+      "可选：环形的心（只有 ringmind / mcp-ring 两个输出去向需要它）"
+    ],
+    "how": "node src/panel.mjs --port 5188，浏览器开 http://127.0.0.1:5188/ 填 key 就能用；或 import { visionNote } 当函数调 —— 不需要海螺。"
+  },
+  "contract": "docs/对接.md",
+  "source": {
+    "repo": ""
+  }
+}
