@@ -28,7 +28,7 @@ test("describeImage：模型 401 报人话（key 没填或不对 + 去哪拿）"
   );
 });
 import { openEyeStore } from "../src/store.mjs";
-import { visionNote, defaultVisionConfig, loadVisionConfig } from "../src/ring-vision.mjs";
+import { visionNote, defaultVisionConfig, loadVisionConfig, fetchImage } from "../src/ring-vision.mjs";
 import * as ringmindAdapter from "../src/adapters/ringmind.mjs";
 import * as jsonlAdapter from "../src/adapters/jsonl.mjs";
 import * as webhookAdapter from "../src/adapters/webhook.mjs";
@@ -284,6 +284,26 @@ test("visionNote：日限到了就闭嘴", async () => {
   const r2 = await visionNote({ key: "g", sender: "u", text: `[CQ:image,file=${IMG_URL_B}]`, at: Date.now() }, { cfg, dataDir, store, fetchImpl: f });
   assert.equal(r2.skipped, "daily-cap");
   assert.equal(store.total(), 1);
+});
+
+test("visionNote：dailyCap 0 = 不限（不再被当成第一天就满）", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "ring-vision-cap0-"));
+  const store = openEyeStore(dataDir);
+  const cfg = cfgOf({ dailyCap: 0, outputs: [{ type: "jsonl", enabled: true, file: join(dataDir, "log.jsonl") }] });
+  const f = fakeFetch('{"desc":"x","points":[]}');
+
+  const r1 = await visionNote({ key: "g", sender: "u", text: `[CQ:image,file=${IMG_URL_A}]`, at: Date.now() }, { cfg, dataDir, store, fetchImpl: f });
+  assert.equal(r1.remembered, 1);
+  const r2 = await visionNote({ key: "g", sender: "u", text: `[CQ:image,file=${IMG_URL_B}]`, at: Date.now() }, { cfg, dataDir, store, fetchImpl: f });
+  assert.equal(r2.remembered, 1, "0 应该等于不限，第二张也该看");
+  assert.equal(store.total(), 2);
+});
+
+test("fetchImage：maxBytes 0 = 不限大小（大图不拒）", async () => {
+  const big = new Uint8Array(5 * 1024 * 1024).buffer;
+  const f = async () => ({ ok: true, arrayBuffer: async () => big, headers: new Map([["content-type", "image/jpeg"]]) });
+  const img = await fetchImage("https://img.test/big.jpg", { maxBytes: 0, timeoutMs: 1000, fetchImpl: f });
+  assert.ok(img, "0 上限不该拒图");
 });
 
 test("visionNote：一个输出挂了，其它输出照常投递", async () => {

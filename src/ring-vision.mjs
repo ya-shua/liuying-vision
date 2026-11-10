@@ -98,7 +98,7 @@ export async function fetchImage(url, { maxBytes, timeoutMs, fetchImpl }) {
     const res = await fetchImpl(url, { signal: ctrl.signal });
     if (!res.ok) throw new Error(`图片下载 ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length > maxBytes) throw new Error(`图片太大（${Math.round(buf.length / 1024)}KB）`);
+    if (maxBytes > 0 && buf.length > maxBytes) throw new Error(`图片太大（${Math.round(buf.length / 1024)}KB）`);
     const mime = String(res.headers.get('content-type') || 'image/jpeg').split(';')[0];
     if (!mime.startsWith('image/')) throw new Error(`不是图片（${mime}）`);
     return { base64: buf.toString('base64'), mime };
@@ -118,8 +118,8 @@ export function defaultVisionConfig() {
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
     model: 'glm-4v-flash',
     apiKey: '',                                        // 选填：空 = 不带鉴权头（免密/本地接口）
-    dailyCap: 40,                                      // 一天最多看多少个媒体，防着刷屏刷爆
-    perMessage: 1,                                     // 一条消息最多看几个媒体
+    dailyCap: 40,                                      // 一天最多看多少个媒体，防着刷屏刷爆（0 = 不限）
+    perMessage: 1,                                     // 一条消息最多看几个媒体（0 = 不限）
     maxBytes: 8 * 1024 * 1024,                         // 图太大不看（8MB）
     timeoutMs: 45000,
     outputs: [],                                       // 输出适配器列表（见 docs）
@@ -136,7 +136,7 @@ export function defaultVisionConfig() {
       baseUrl: 'https://api.siliconflow.cn/v1',        // OpenAI 兼容 /audio/transcriptions（Groq 免费档 / 本地 whisper server）
       model: 'whisper-large-v3',
       apiKey: '',                                      // 选填（免密服务留空）
-      maxSeconds: 120,                                 // 最长转写多少秒（控制量）
+      maxSeconds: 120,                                 // 最长转写多少秒（控制量；0 = 不限）
       language: 'zh',                                  // 选填，如 zh；留空自动检测
     },
     retain: {                                          // 留档：看过的媒体+分析留在 dataDir/media/（best-effort，0 = 不留）
@@ -329,7 +329,7 @@ export async function describeVideo(videoBuffer, { cfg, channel, fetchImpl, text
       const t0 = Date.now();
       const audio = await extractAudio({
         buffer: videoBuffer, ffmpegPath: v.ffmpegPath || 'ffmpeg',
-        maxSeconds: cfg.asr.maxSeconds || 120,
+        maxSeconds: cfg.asr.maxSeconds ?? 120,            // 0 = 不限时长，不能被 || 吃回 120
         tmpDir: join(cfg.dataDir, 'tmp'), spawnImpl,
       });
       if (audio) {
@@ -384,14 +384,14 @@ export async function visionNote(input, opts = {}) {
     const media = [
       ...explicit.images.map((u) => ({ url: String(u), kind: 'image' })),
       ...explicit.videos.map((u) => ({ url: String(u), kind: 'video' })),
-    ].slice(0, Math.max(1, cfg.perMessage));
+    ].slice(0, Number(cfg.perMessage) > 0 ? Number(cfg.perMessage) : Infinity);
     if (!media.length) return { ok: true, skipped: 'no-media' };
 
     const store = opts.store ?? openEyeStore(cfg.dataDir);
 
     const dayStart = dayStartOf(at);
     const seenToday = store.seenToday(dayStart);
-    if (seenToday >= cfg.dailyCap) {
+    if (Number(cfg.dailyCap) > 0 && seenToday >= cfg.dailyCap) {
       console.error(`[留影] 今天已看 ${seenToday} 个媒体，到日限了，剩下的跳过`);
       return { ok: true, skipped: 'daily-cap' };
     }
@@ -428,7 +428,7 @@ export async function visionNote(input, opts = {}) {
             const res = await fetchImpl(url, { signal: ctrl.signal });
             if (!res.ok) throw new Error(`视频下载 ${res.status}`);
             buf = Buffer.from(await res.arrayBuffer());
-            if (buf.length > (v.maxBytes || 64 * 1024 * 1024)) throw new Error(`视频太大（${Math.round(buf.length / 1048576)}MB）`);
+            if (v.maxBytes > 0 && buf.length > v.maxBytes) throw new Error(`视频太大（${Math.round(buf.length / 1048576)}MB）`);
           } finally {
             clearTimeout(timer);
           }

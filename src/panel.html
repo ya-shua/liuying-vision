@@ -411,8 +411,8 @@
       <div class="form">
         <label>总开关</label>
         <select id="c-enabled"><option value="true">开</option><option value="false">关</option></select>
-        <label>一天最多看</label><input type="text" id="c-dailyCap" placeholder="建议 40（所有来源合计的每日上限）">
-        <label>每条消息最多看</label><input type="text" id="c-perMessage" placeholder="建议 1（刷视频场景，一条消息一个）">
+        <label>一天最多看</label><input type="text" id="c-dailyCap" placeholder="建议 40；0 = 不限（一天随便看）">
+        <label>每条消息最多看</label><input type="text" id="c-perMessage" placeholder="建议 1（刷视频一条一个）；0 = 不限">
       </div>
     </div>
 
@@ -420,7 +420,7 @@
       <div class="card-title">照片 · 大小与留档</div>
       <div class="card-desc">图片大小上限；留档 = 原图 + 分析存进 data\media\，超额自动删最旧。</div>
       <div class="form">
-        <label>大小上限 MB</label><input type="text" id="p-maxmb" placeholder="默认 8（单张图片的上限）">
+        <label>大小上限 MB</label><input type="text" id="p-maxmb" placeholder="默认 8（单张上限）；0 = 不限大小">
         <label>图片留档</label><input type="text" id="c-retainImages" placeholder="默认 50 份（0 = 不留）">
       </div>
     </div>
@@ -430,7 +430,7 @@
       <div class="card-desc">视频里有人说话就值得开：AI 看画面之外还能听见声音。模型和 key 在「模型接入」页。</div>
       <div class="form">
         <label>声音转文字</label><select id="a-enabled"><option value="false">关（默片）</option><option value="true">开（接语音转文字）</option></select>
-        <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120">
+        <label>最长转写秒</label><input type="text" id="a-maxsec" placeholder="120；0 = 不限时长">
       </div>
     </div>
 </div><!-- /sec-photo -->
@@ -451,7 +451,7 @@
         <select id="v-mode"><option value="interval">按间隔秒</option><option value="even">按时长均匀分布</option><option value="scene">按镜头切换（画面一变才取）</option></select>
         <label id="v-interval-label">间隔秒</label><input type="text" id="v-interval" placeholder="建议 10（每隔几秒取一帧）">
         <label>ffmpeg 路径</label><input type="text" id="v-ffmpeg" placeholder="bin\ffmpeg.exe（插件自带）/ 完整路径 / ffmpeg（PATH）">
-        <label>大小上限 MB</label><input type="text" id="v-maxmb" placeholder="默认 20（刷视频足够）">
+        <label>大小上限 MB</label><input type="text" id="v-maxmb" placeholder="默认 20（刷视频足够）；0 = 不限大小">
         <label>截图留档</label><input type="text" id="v-retainFrames" placeholder="默认 10 份（0 = 不留）">
       </div>
     </div>
@@ -700,6 +700,9 @@ async function loadChart() {
 }
 $('arch-refresh').addEventListener('click', () => { loadArchive(); loadSeen(); });
 
+/* 数字输入：空着/不是数 → 默认值；0 是合法值（= 不上限），绝不能被 || 吃掉 */
+const numOr = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+
 /* 抽帧方式决定填什么：只有「按间隔秒」才需要间隔秒，均匀/镜头模式不用填 */
 function syncModeFields() {
   const on = $('v-mode').value === 'interval';
@@ -731,13 +734,14 @@ async function loadStatus() {
     }
   }
 
-  const cap = Math.max(1, Number(cfg.dailyCap) || 40);
+  const cap = Number(cfg.dailyCap) || 0;
+  const unlimited = cap <= 0;
   const used = Number(r.usage.seenToday) || 0;
-  const pct = Math.min(100, Math.round((used / cap) * 100));
-  const hot = pct >= 90;
+  const pct = unlimited ? null : Math.min(100, Math.round((used / cap) * 100));
+  const hot = pct != null && pct >= 90;
 
   $('metrics').innerHTML = [
-    { l: '今天已看', m: used + ' 张', s: '日限 ' + cap + ' 张 · 还剩 ' + Math.max(0, cap - used), bar: pct },
+    { l: '今天已看', m: used + ' 张', s: unlimited ? '今日不限量' : '日限 ' + cap + ' 张 · 还剩 ' + Math.max(0, cap - used), bar: pct },
     { l: '累计看过', m: r.usage.totalSeen + ' 张', s: r.usage.lastSeenAt ? '最近 ' + clock(r.usage.lastSeenAt) : '还没开张' },
     { l: '模型', m: esc(cfg.model || '未选'), s: (cfg.channels?.length > 1 ? cfg.channels.length + ' 通道并发 · ' : '') + (cfg.apiKeySet ? 'key …' + esc(cfg.apiKeyTail) : '免密') },
     { l: '输出去向', m: outs.length ? outs.map((o) => OUT_TYPES[o.type] || o.type).join(' / ') : '（没选）', s: '可叠加，互不拖累' },
@@ -1208,13 +1212,13 @@ function collectVideo() {
     mode: $('v-mode').value,
     intervalSec: Number($('v-interval').value) || 5,
     ffmpegPath: $('v-ffmpeg').value.trim() || 'ffmpeg',
-    maxBytes: (Number($('v-maxmb').value) || 64) * 1048576,
+    maxBytes: numOr($('v-maxmb').value, 64) * 1048576,
     asr: {
       enabled: $('a-enabled').value === 'true' && !!$('a-baseUrl').value.trim(),
       baseUrl: $('a-baseUrl').value.trim(),
       model: $('a-model').value.trim() || 'whisper-large-v3',
       apiKey: $('a-apiKey').value.trim(),
-      maxSeconds: Math.max(10, Math.min(600, Number($('a-maxsec').value) || 120)),
+      maxSeconds: Number($('a-maxsec').value) === 0 ? 0 : Math.max(10, Math.min(600, numOr($('a-maxsec').value, 120))),
       language: '',
     },
   };
@@ -1324,15 +1328,15 @@ $('c-save').addEventListener('click', async () => {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       enabled: $('c-enabled').value === 'true',
-      dailyCap: Number($('c-dailyCap').value) || 40,
-      perMessage: Number($('c-perMessage').value) || 2,
+      dailyCap: numOr($('c-dailyCap').value, 40),
+      perMessage: numOr($('c-perMessage').value, 2),
       outputs: collectOutputs(),
       video: collectVideo(),
       retain: collectRetain(),
-      maxBytes: (Number($('p-maxmb').value) || 8) * 1048576,
+      maxBytes: numOr($('p-maxmb').value, 8) * 1048576,
     }),
   }).then((x) => x.json());
-  $('c-hint').textContent = r.ok ? '已保存 ' + r.configPath : ('没存成：' + (r.error || '?'));
+  $('c-hint').textContent = r.ok ? '已保存，即刻生效' : ('没存成：' + (r.error || '?'));
   toast(r.ok ? '设置已保存' : ('没存成：' + (r.error || '?')), r.ok ? 'ok' : 'bad');
   loadStatus();
 });

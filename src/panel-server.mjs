@@ -538,8 +538,10 @@ export async function createPanelServer({
         }
         // key 打码保护：面板传空/传打码串 = 不改
         if (!next.apiKey || next.apiKey.includes('••')) next.apiKey = cur.apiKey;
-        next.dailyCap = Math.max(1, Number(next.dailyCap) || 40);
-        next.perMessage = Math.max(1, Number(next.perMessage) || 2);
+        // 0 是合法值 = 无上限，不能被 || / Math.max 吃掉；只有空着/不是数才回默认
+        const numOr0 = (x, d) => { const n = Number(x); return Number.isFinite(n) ? n : d; };
+        next.dailyCap = numOr0(next.dailyCap, 40);
+        next.perMessage = numOr0(next.perMessage, 2);
         next.enabled = next.enabled !== false; // 开关独立：key 选填（免密接口留空也能开），缺 key 时自检卡会黄牌提醒
         next.outputs = Array.isArray(next.outputs) ? next.outputs : [];
         if (next.video && typeof next.video === 'object') {
@@ -550,7 +552,7 @@ export async function createPanelServer({
             frames: Math.max(1, Math.min(10, Number(v.frames) || 3)),
             mode: ['even', 'interval', 'scene'].includes(v.mode) ? v.mode : 'interval', // scene 曾被这里吞成 interval
             intervalSec: Math.max(1, Number(v.intervalSec) || 5),
-            maxBytes: Math.max(1048576, Number(v.maxBytes) || 67108864),
+            maxBytes: numOr0(v.maxBytes, 67108864), // 0 = 不限大小；默认 64MB，不设下限
             ffmpegPath: String(v.ffmpegPath || 'bin/ffmpeg.exe'),
           };
           // 面板把声音转文字放在 video.asr 里发 —— 提升到顶层（正式位置），否则会被这里整体重建剥掉，开关永远存不上
@@ -569,7 +571,7 @@ export async function createPanelServer({
             baseUrl,
             model: String(a.model || 'whisper-large-v3').trim() || 'whisper-large-v3',
             apiKey: String(a.apiKey || '').trim() || (cur.asr?.apiKey ?? ''), // 留空 = 保留旧值
-            maxSeconds: Math.max(10, Math.min(600, Number(a.maxSeconds) || 120)),
+            maxSeconds: numOr0(a.maxSeconds, 120) === 0 ? 0 : Math.max(10, Math.min(600, numOr0(a.maxSeconds, 120))), // 0 = 不限时长
             language: String(a.language || '').trim(),
           };
           if (!next.asr.baseUrl) next.asr.enabled = false;

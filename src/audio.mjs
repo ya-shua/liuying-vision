@@ -33,7 +33,8 @@ export async function extractAudio(p) {
     '-i', inFile,
     '-vn',                     // 去画面，只要声音
     '-ac', '1', '-ar', '16000', // 单声道 16kHz：ASR 够用，文件最小
-    '-t', String(Math.max(10, maxSeconds)),
+    // maxSeconds 0 = 不限时长，不给 -t 让 ffmpeg 转完整段
+    ...(Number(maxSeconds) > 0 ? ['-t', String(Math.max(10, maxSeconds))] : []),
     '-b:a', '48k',
     outFile,
   ];
