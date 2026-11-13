@@ -1,6 +1,6 @@
 {
   "name": "liuying",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "description": "留影 —— 环形的心（记忆库）的视觉接入插件：QQ 图片 → 视觉模型看一眼 → 描述进记忆圈",

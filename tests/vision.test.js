@@ -299,6 +299,31 @@ test("visionNote：dailyCap 0 = 不限（不再被当成第一天就满）", asy
   assert.equal(store.total(), 2);
 });
 
+test("visionNote：imageBuffers 官方入口——看成+记账，同字节去重不重看", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "ring-vision-buf-"));
+  const store = openEyeStore(dataDir);
+  const jsonlFile = join(dataDir, "log.jsonl");
+  const cfg = cfgOf({ outputs: [{ type: "jsonl", enabled: true, file: jsonlFile }] });
+  const f = fakeFetch('{"desc":"帧里的猫","points":["猫"]}');
+
+  const frame = Buffer.from("fake-frame-bytes").toString("base64");
+  const r1 = await visionNote(
+    { key: "bili:BV1xx", sender: "刷视频", imageBuffers: [{ base64: frame, mime: "image/jpeg" }], at: Date.now() },
+    { cfg, dataDir, store, fetchImpl: f },
+  );
+  assert.equal(r1.remembered, 1, "给字节也该看成");
+  assert.equal(r1.results[0].desc, "帧里的猫");
+  assert.equal(store.total(), 1, "账本记了一条");
+
+  // 同一段字节再来一遍 → 内容哈希相同，去重不重看
+  const r2 = await visionNote(
+    { key: "bili:BV1xx", sender: "刷视频", imageBuffers: [{ base64: frame }], at: Date.now() },
+    { cfg, dataDir, store, fetchImpl: f },
+  );
+  assert.equal(r2.results[0].skipped, "seen", "同字节不该重看");
+  assert.equal(store.total(), 1, "账本不涨");
+});
+
 test("fetchImage：maxBytes 0 = 不限大小（大图不拒）", async () => {
   const big = new Uint8Array(5 * 1024 * 1024).buffer;
   const f = async () => ({ ok: true, arrayBuffer: async () => big, headers: new Map([["content-type", "image/jpeg"]]) });

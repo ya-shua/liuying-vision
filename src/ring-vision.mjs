@@ -360,7 +360,9 @@ export async function describeVideo(videoBuffer, { cfg, channel, fetchImpl, text
  * 主入口：一条消息进来，看有没有媒体（图/视频），有就看、看完扇出给所有输出。
  * 永不抛错（bridge 那边 fire-and-forget），结果用返回值带回来。
  *
- * @param {object} input  { images?, videos?, key, sender, text, at? }
+ * @param {object} input  { images?, videos?, imageBuffers?, videoBuffers?, audio?, key, sender, text, at? }
+ *    imageBuffers/videoBuffers：宿主手里已有字节时直接给（{ base64, mime?, url? } 或裸 Buffer），
+ *    不用造假 URL；账本按「内容哈希」去重，同一帧/同一段视频不会重复看。audio:false 可强制关掉这条的听声。
  * @param {object} [opts] { fetchImpl?, cfg?, dataDir?, store? } —— 测试注入用
  */
 export async function visionNote(input, opts = {}) {
@@ -381,7 +383,16 @@ export async function visionNote(input, opts = {}) {
     const explicit = (input.images?.length || input.videos?.length)
       ? { images: input.images ?? [], videos: input.videos ?? [] }
       : extractMedia(text);
+    // 宿主直接给字节：账本 key 按「内容哈希」算（同一段视频/同一帧只看一次），url 只做展示
+    const toBuffer = (b) => (Buffer.isBuffer(b) ? b : Buffer.from(String(b ?? ''), 'base64'));
+    const bufItem = (kind, b) => {
+      const buffer = Buffer.isBuffer(b) ? b : (Buffer.isBuffer(b?.buffer) ? b.buffer : toBuffer(b?.base64 ?? b));
+      const h = urlHash('buf|' + createHash('sha256').update(buffer).digest('hex'));
+      return { kind, buffer, mime: b?.mime, url: b?.url || `buffer:${kind}:${h}`, hash: urlHash(kind + '|buf:' + h) };
+    };
     const media = [
+      ...(input.imageBuffers ?? []).map((b) => bufItem('image', b)),
+      ...(input.videoBuffers ?? []).map((b) => bufItem('video', b)),
       ...explicit.images.map((u) => ({ url: String(u), kind: 'image' })),
       ...explicit.videos.map((u) => ({ url: String(u), kind: 'video' })),
     ].slice(0, Number(cfg.perMessage) > 0 ? Number(cfg.perMessage) : Infinity);
@@ -406,7 +417,7 @@ export async function visionNote(input, opts = {}) {
       const url = m.url;
       let kind = m.kind;
       const ch = channels[wi % channels.length];
-      const hash = urlHash(kind + '|' + url);
+      const hash = m.hash || urlHash(kind + '|' + url);
       if (store.hasSeen(hash)) { results[idx] = { url, kind, skipped: 'seen' }; return; }
 
       let desc, points, ms, frames, tokens = 0, archiveSrc = null; // archiveSrc：要留档的东西（原图/帧图），成功路径统一交 archiveMedia
@@ -420,19 +431,23 @@ export async function visionNote(input, opts = {}) {
           return;
         }
         try {
-          // 先下载到本地（视频可能很大，单独限量）
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), v.timeoutMs || 120000);
-          let buf;
-          try {
-            const res = await fetchImpl(url, { signal: ctrl.signal });
-            if (!res.ok) throw new Error(`视频下载 ${res.status}`);
-            buf = Buffer.from(await res.arrayBuffer());
-            if (v.maxBytes > 0 && buf.length > v.maxBytes) throw new Error(`视频太大（${Math.round(buf.length / 1048576)}MB）`);
-          } finally {
-            clearTimeout(timer);
+          // 宿主给了字节就直接用；没有才下载（视频可能很大，单独限量）
+          let buf = m.buffer ?? null;
+          if (!buf) {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), v.timeoutMs || 120000);
+            try {
+              const res = await fetchImpl(url, { signal: ctrl.signal });
+              if (!res.ok) throw new Error(`视频下载 ${res.status}`);
+              buf = Buffer.from(await res.arrayBuffer());
+              if (v.maxBytes > 0 && buf.length > v.maxBytes) throw new Error(`视频太大（${Math.round(buf.length / 1048576)}MB）`);
+            } finally {
+              clearTimeout(timer);
+            }
+          } else if (v.maxBytes > 0 && buf.length > v.maxBytes) {
+            throw new Error(`视频太大（${Math.round(buf.length / 1048576)}MB）`);
           }
-          const out = await describeVideo(buf, { cfg, channel: ch, fetchImpl, text, audio: true, spawnImpl: opts.spawnImpl });
+          const out = await describeVideo(buf, { cfg, channel: ch, fetchImpl, text, audio: input.audio !== false, spawnImpl: opts.spawnImpl });
           desc = out.desc; points = out.points; ms = out.ms; frames = out.frames; tokens = out.usage ?? 0;
           archiveSrc = { frameImages: out.frameImages };
         } catch (e) {
@@ -442,7 +457,9 @@ export async function visionNote(input, opts = {}) {
         }
       } else {
         // 图片 / 动图
-        const img = await fetchImage(url, { maxBytes: cfg.maxBytes, timeoutMs: cfg.timeoutMs, fetchImpl });
+        const img = m.buffer
+          ? { base64: m.buffer.toString('base64'), mime: m.mime || 'image/jpeg' } // 宿主给的字节，不下载
+          : await fetchImage(url, { maxBytes: cfg.maxBytes, timeoutMs: cfg.timeoutMs, fetchImpl });
 
         // GIF 动图：视觉模型一般不认 gif，抽 2~3 帧当图看；没 ffmpeg → 跳过（多帧容错，不拖累其它媒体）
         if (isGifUrl(url) || img.mime === 'image/gif') {
